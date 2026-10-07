@@ -1,6 +1,6 @@
 plugins {
-    id("com.android.application")
-    kotlin("android")
+    id("com.android.application") version "8.3.0"
+    kotlin("android") version "2.0.20"
 }
 
 android {
@@ -35,6 +35,11 @@ android {
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"
+    }
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 }
 

@@ -1,14 +1,19 @@
 plugins {
-    kotlin("multiplatform")
+    kotlin("multiplatform") version "2.0.20"
     id("org.jetbrains.compose") version "1.6.10"
 }
 
 kotlin {
-    android()
+    android {
+        compilerOptions {
+            jvmTarget.set(JavaVersion.VERSION_1_8)
+        }
+    }
     ios {
         binaries {
             framework {
                 baseName = "shared"
+                isStatic = true
             }
         }
     }
