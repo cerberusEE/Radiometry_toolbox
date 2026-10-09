@@ -1,30 +1,30 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
-    kotlin("multiplatform") version "2.0.20"
-    id("org.jetbrains.compose") version "1.6.10"
+    kotlin("multiplatform")
+    id("org.jetbrains.compose")
+    id("com.android.library")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 kotlin {
-    android {
+    androidTarget {
         compilerOptions {
-            jvmTarget.set(JavaVersion.VERSION_1_8)
+            jvmTarget.set(JvmTarget.JVM_17)
         }
     }
-    ios {
-        binaries {
-            framework {
-                baseName = "shared"
-                isStatic = true
-            }
-        }
-    }
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
+
     sourceSets {
         val commonMain by getting {
             dependencies {
-                implementation("org.jetbrains.kotlin:kotlinx-coroutines-core:1.8.0")
-                implementation("org.jetbrains.compose.foundation:foundation:1.6.10")
-                implementation("org.jetbrains.compose.material3:material3:1.6.10")
-                implementation("org.jetbrains.compose.ui:ui-tooling-preview:1.6.10")
-                implementation("org.jetbrains.compose.runtime:runtime-saveable:1.6.10")
+                implementation(compose.foundation)
+                implementation(compose.material3)
+                implementation(compose.runtime)
+                implementation(compose.ui)
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
             }
         }
         val androidMain by getting {
@@ -34,10 +34,18 @@ kotlin {
                 implementation("androidx.compose.foundation:foundation:1.6.8")
             }
         }
-        val iosMain by getting {
+        val iosX64Main by getting
+        val iosArm64Main by getting
+        val iosSimulatorArm64Main by getting
+        val iosMain by creating {
+            dependsOn(commonMain)
+            iosX64Main.dependsOn(this)
+            iosArm64Main.dependsOn(this)
+            iosSimulatorArm64Main.dependsOn(this)
             dependencies {
-                implementation("org.jetbrains.compose.foundation:foundation-ui:1.6.10")
-                implementation("org.jetbrains.compose.material3:material3:1.6.10")
+                implementation(compose.foundation)
+                implementation(compose.material3)
+                implementation(compose.ui)
             }
         }
         val commonTest by getting {
@@ -45,5 +53,17 @@ kotlin {
                 implementation(kotlin("test"))
             }
         }
+    }
+}
+
+android {
+    namespace = "com.radiometry.toolbox.shared"
+    compileSdk = 34
+    defaultConfig {
+        minSdk = 24
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }

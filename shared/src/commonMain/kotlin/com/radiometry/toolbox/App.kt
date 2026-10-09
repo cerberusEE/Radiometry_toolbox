@@ -2,14 +2,9 @@ package com.radiometry.toolbox
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.AnchoredDraggableState
-import androidx.compose.foundation.gestures.DraggableAnchors
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.anchoredDraggable
-import androidx.compose.foundation.gestures.animateTo
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.gestures.snapTo
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,47 +14,32 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 // Define the available tools in the toolbox
 val tools = listOf(
@@ -67,7 +47,7 @@ val tools = listOf(
     Tool("Irradiance Analyzer", "Analyze irradiance measurements", Color(0xFF03DAC5)),
     Tool("Spectrum Viewer", "Visualize spectral distributions", Color(0xFF3700B3)),
     Tool("Temperature Converter", "Convert between temperature units", Color(0xFF018786)),
-    Tool("Flux Calculator", "Calculate luminous flux", Color(0xFFBB86FC))
+    Tool("Flux Calculator", "Calculate luminous flux", Color(0xFFBB86FC)),
 )
 
 // Define settings for each tool
@@ -111,7 +91,6 @@ data class Setting(
     val defaultValue: String
 )
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun App() {
     MaterialTheme {
@@ -128,21 +107,10 @@ fun App() {
 @Composable
 fun ToolboxApp() {
     var currentToolIndex by remember { mutableIntStateOf(0) }
-    var currentSettingIndex by remember { mutableIntStateOf(0) }
     var expandedSettingIndex by remember { mutableIntStateOf(-1) }
     
     val currentTool = tools[currentToolIndex]
     val currentSettings = toolSettings[currentTool.name] ?: emptyList()
-    
-    // Handle horizontal swipe for tool selection
-    val toolListState = rememberLazyListState()
-    
-    // Handle vertical swipe for settings
-    val settingsListState = rememberLazyListState()
-    
-    // Track swipe gestures
-    var swipeOffsetX by remember { mutableStateOf(0f) }
-    var swipeOffsetY by remember { mutableStateOf(0f) }
     
     Column(
         modifier = Modifier

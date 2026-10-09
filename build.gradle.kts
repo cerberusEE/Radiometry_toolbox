@@ -1,12 +1,11 @@
 plugins {
-    kotlin("multiplatform") version "2.0.20"
+    id("com.android.application") version "8.8.0" apply false
+    id("com.android.library") version "8.8.0" apply false
+    id("org.jetbrains.kotlin.android") version "2.1.10" apply false
+    id("org.jetbrains.kotlin.multiplatform") version "2.1.10" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.1.10" apply false
+    id("org.jetbrains.compose") version "1.7.3" apply false
 }
 
 group = "com.radiometry"
 version = "1.0.0"
-
-// Apply version catalog if available
-// plugins {
-//     alias(libs.plugins.android.application) apply false
-//     alias(libs.plugins.kotlin.multiplatform) apply false
-// }
