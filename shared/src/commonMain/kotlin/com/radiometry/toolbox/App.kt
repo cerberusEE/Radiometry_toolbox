@@ -57,7 +57,6 @@ import kotlin.math.roundToInt
 // Define the available tools in the toolbox
 val tools = listOf(
     Tool("Radiance Calculator", "Calculate radiance values", Color(0xFF6200EE)),
-    Tool("Irradiance Analyzer", "Analyze irradiance measurements", Color(0xFF03DAC5)),
     Tool("Spectrum Viewer", "Visualize spectral distributions", Color(0xFF3700B3)),
     Tool("Temperature Converter", "Convert between temperature units", Color(0xFF018786)),
     Tool("Light source calculator", "Calculate irradiance from a light source", Color(0xFFFF6D00)),
@@ -186,7 +185,6 @@ fun VisualizationPanel(tool: Tool, modifier: Modifier = Modifier) {
             // Tool-specific visualization / output
             when (tool.name) {
                 "Radiance Calculator" -> RadianceVisualization()
-                "Irradiance Analyzer" -> IrradianceVisualization()
                 "Spectrum Viewer" -> SpectrumVisualization()
                 "Temperature Converter" -> TemperatureVisualization()
                 "Light source calculator" -> LightSourceVisualization()
@@ -327,33 +325,6 @@ fun RadianceVisualization() {
                 selectedUnit = temperatureUnit,
                 onUnitSelected = { temperatureUnit = it },
                 modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-fun IrradianceVisualization() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(100.dp)
-            .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
-            .padding(12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "Calculated Output",
-                fontSize = 12.sp,
-                color = Color.White.copy(alpha = 0.7f),
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Irradiance: 456 mW/cm²",
-                fontSize = 20.sp,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
             )
         }
     }
