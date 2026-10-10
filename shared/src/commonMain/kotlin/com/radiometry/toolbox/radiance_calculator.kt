@@ -236,7 +236,7 @@ fun calculateSpectralRadianceForUnit(
 private fun formatTickValue(value: Double): String {
     if (value == 0.0) return "0"
     val absVal = kotlin.math.abs(value)
-    return if (absVal < 0.01 || absVal >= 10000.0) {
+    return if (absVal !in 0.01..<10000.0) {
         val exp = kotlin.math.floor(kotlin.math.log10(absVal)).toInt()
         val mantissa = absVal / 10.0.pow(exp.toDouble())
         val rounded = kotlin.math.round(mantissa * 100.0) / 100.0

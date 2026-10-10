@@ -142,7 +142,7 @@ fun TemperatureVisualization(
             BlackbodyColorBox(kelvin = convertedKelvin)
         }
 
-        // Input temperature textfield
+        // Input temperature text field
         OutlinedTextField(
             value = temperatureText,
             onValueChange = { onTemperatureTextChange(it) },
