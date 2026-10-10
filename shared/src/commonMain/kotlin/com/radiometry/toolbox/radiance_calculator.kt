@@ -1,12 +1,14 @@
 package com.radiometry.toolbox
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -26,12 +28,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
+import kotlin.math.pow
 
 @Composable
 fun RadianceVisualization(
@@ -186,6 +195,265 @@ fun RadianceVisualization(
                 onUnitSelected = { onTemperatureUnitChange(it) },
                 modifier = Modifier.weight(1f),
             )
+        }
+
+        // Planck curve figure
+        PlanckCurvePlot(
+            startVal = startVal,
+            stopVal = stopVal,
+            tempVal = tempVal,
+            wavelengthUnit = wavelengthUnit,
+            temperatureUnit = temperatureUnit,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(240.dp),
+        )
+    }
+}
+
+fun calculateSpectralRadianceForUnit(
+    xInUserUnit: Double,
+    wavelengthUnit: WavelengthUnit,
+    tempKelvin: Double,
+): Double {
+    if (xInUserUnit <= 0.0 || tempKelvin <= 0.0) return 0.0
+    return when (wavelengthUnit) {
+        WavelengthUnit.NANOMETERS -> {
+            val lambdaMeters = xInUserUnit * 1e-9
+            spectralRadiance(lambdaMeters, tempKelvin) * 1e-9
+        }
+        WavelengthUnit.MICROMETERS -> {
+            val lambdaMeters = xInUserUnit * 1e-6
+            spectralRadiance(lambdaMeters, tempKelvin) * 1e-6
+        }
+        WavelengthUnit.INVERSE_CENTIMETERS -> {
+            val lambdaMeters = 1.0 / (100.0 * xInUserUnit)
+            spectralRadiance(lambdaMeters, tempKelvin) * (100.0 * lambdaMeters * lambdaMeters)
+        }
+    }
+}
+
+private fun formatTickValue(value: Double): String {
+    if (value == 0.0) return "0"
+    val absVal = kotlin.math.abs(value)
+    return if (absVal < 0.01 || absVal >= 10000.0) {
+        val exp = kotlin.math.floor(kotlin.math.log10(absVal)).toInt()
+        val mantissa = absVal / 10.0.pow(exp.toDouble())
+        val rounded = kotlin.math.round(mantissa * 100.0) / 100.0
+        "${rounded}e$exp"
+    } else {
+        val rounded = kotlin.math.round(value * 100.0) / 100.0
+        if (kotlin.math.abs(rounded - kotlin.math.round(rounded)) < 1e-6) {
+            rounded.toLong().toString()
+        } else {
+            rounded.toString()
+        }
+    }
+}
+
+@Composable
+fun PlanckCurvePlot(
+    startVal: Double?,
+    stopVal: Double?,
+    tempVal: Double?,
+    wavelengthUnit: WavelengthUnit,
+    temperatureUnit: TemperatureUnit,
+    modifier: Modifier = Modifier,
+) {
+    val tempKelvin = tempVal?.let { convertTemperatureToKelvin(it, temperatureUnit) }
+
+    val isValid = startVal != null && startVal > 0.0 &&
+            stopVal != null && stopVal > 0.0 &&
+            tempKelvin != null && tempKelvin > 0.0
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+            .padding(8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (!isValid) {
+            Text(
+                text = "Enter valid positive inputs to view Planck curve",
+                fontSize = 12.sp,
+                color = Color.White.copy(alpha = 0.6f),
+            )
+            return@Box
+        }
+
+        val vMin = minOf(startVal, stopVal)
+        val vMax = maxOf(startVal, stopVal)
+        val xMin = 0.9 * vMin
+        val xMax = 1.1 * vMax
+
+        if (xMin >= xMax || xMin <= 0.0) {
+            Text(
+                text = "Invalid wavelength range for Planck curve",
+                fontSize = 12.sp,
+                color = Color.White.copy(alpha = 0.6f),
+            )
+            return@Box
+        }
+
+        val numPoints = 200
+        val points = List(numPoints) { i ->
+            val x = xMin + i * (xMax - xMin) / (numPoints - 1)
+            val y = calculateSpectralRadianceForUnit(x, wavelengthUnit, tempKelvin)
+            Pair(x, y)
+        }
+
+        val yMax = points.maxOfOrNull { it.second }?.takeIf { it > 0.0 } ?: 1.0
+        val yMin = 0.0
+
+        val xLabel = when (wavelengthUnit) {
+            WavelengthUnit.NANOMETERS -> "Wavelength (nm)"
+            WavelengthUnit.MICROMETERS -> "Wavelength (µm)"
+            WavelengthUnit.INVERSE_CENTIMETERS -> "Wavenumber (cm⁻¹)"
+        }
+
+        val yLabel = when (wavelengthUnit) {
+            WavelengthUnit.NANOMETERS -> "Spectral Radiance (W/(sr·m²·nm))"
+            WavelengthUnit.MICROMETERS -> "Spectral Radiance (W/(sr·m²·µm))"
+            WavelengthUnit.INVERSE_CENTIMETERS -> "Spectral Radiance (W/(sr·m²·cm⁻¹))"
+        }
+
+        val textMeasurer = rememberTextMeasurer()
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val paddingLeft = 55.dp.toPx()
+            val paddingRight = 16.dp.toPx()
+            val paddingTop = 24.dp.toPx()
+            val paddingBottom = 36.dp.toPx()
+
+            val plotWidth = size.width - paddingLeft - paddingRight
+            val plotHeight = size.height - paddingTop - paddingBottom
+
+            if (plotWidth <= 0 || plotHeight <= 0) return@Canvas
+
+            fun toPxX(x: Double): Float {
+                return (paddingLeft + ((x - xMin) / (xMax - xMin)) * plotWidth).toFloat()
+            }
+
+            fun toPxY(y: Double): Float {
+                return (paddingTop + plotHeight - ((y - yMin) / (yMax - yMin)) * plotHeight).toFloat()
+            }
+
+            // Draw Y-axis title above chart
+            val yTitleResult = textMeasurer.measure(
+                text = yLabel,
+                style = TextStyle(color = Color.White.copy(alpha = 0.85f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            )
+            drawText(yTitleResult, topLeft = Offset(paddingLeft, 2.dp.toPx()))
+
+            // Horizontal Grid Lines & Y Tick Labels (4 steps)
+            val ySteps = 4
+            for (i in 0..ySteps) {
+                val yValue = yMin + i * (yMax - yMin) / ySteps
+                val py = toPxY(yValue)
+
+                drawLine(
+                    color = Color.White.copy(alpha = 0.12f),
+                    start = Offset(paddingLeft, py),
+                    end = Offset(paddingLeft + plotWidth, py),
+                    strokeWidth = 1.dp.toPx()
+                )
+
+                val tickStr = formatTickValue(yValue)
+                val tickResult = textMeasurer.measure(
+                    text = tickStr,
+                    style = TextStyle(color = Color.White.copy(alpha = 0.7f), fontSize = 9.sp)
+                )
+                val textX = paddingLeft - tickResult.size.width - 4.dp.toPx()
+                val textY = py - tickResult.size.height / 2f
+                if (textX >= 0) {
+                    drawText(tickResult, topLeft = Offset(textX, textY))
+                }
+            }
+
+            // Vertical Grid Lines for vMin and vMax
+            listOf(vMin, vMax).forEach { xVal ->
+                val px = toPxX(xVal)
+                drawLine(
+                    color = Color(0xFFFFB74D).copy(alpha = 0.4f),
+                    start = Offset(px, paddingTop),
+                    end = Offset(px, paddingTop + plotHeight),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+
+            // Shaded Area under the curve between vMin and vMax
+            val subSteps = 100
+            val bandPath = Path().apply {
+                moveTo(toPxX(vMin), toPxY(0.0))
+                for (j in 0..subSteps) {
+                    val x = vMin + j * (vMax - vMin) / subSteps
+                    val y = calculateSpectralRadianceForUnit(x, wavelengthUnit, tempKelvin)
+                    lineTo(toPxX(x), toPxY(y))
+                }
+                lineTo(toPxX(vMax), toPxY(0.0))
+                close()
+            }
+            drawPath(
+                path = bandPath,
+                color = Color(0xFFFFB74D).copy(alpha = 0.25f)
+            )
+
+            // Planck Curve
+            val curvePath = Path().apply {
+                val first = points.first()
+                moveTo(toPxX(first.first), toPxY(first.second))
+                for (k in 1 until points.size) {
+                    val p = points[k]
+                    lineTo(toPxX(p.first), toPxY(p.second))
+                }
+            }
+            drawPath(
+                path = curvePath,
+                color = Color(0xFF64B5F6),
+                style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+            )
+
+            // Axes
+            drawLine(
+                color = Color.White.copy(alpha = 0.7f),
+                start = Offset(paddingLeft, paddingTop + plotHeight),
+                end = Offset(paddingLeft + plotWidth, paddingTop + plotHeight),
+                strokeWidth = 1.5.dp.toPx()
+            )
+            drawLine(
+                color = Color.White.copy(alpha = 0.7f),
+                start = Offset(paddingLeft, paddingTop),
+                end = Offset(paddingLeft, paddingTop + plotHeight),
+                strokeWidth = 1.5.dp.toPx()
+            )
+
+            // X-Axis Tick Labels at xMin, vMin, vMax, xMax
+            val xTicks = listOf(xMin, vMin, vMax, xMax).distinct()
+            xTicks.forEach { xVal ->
+                val px = toPxX(xVal)
+                val tickStr = formatTickValue(xVal)
+                val tickResult = textMeasurer.measure(
+                    text = tickStr,
+                    style = TextStyle(
+                        color = if (xVal == vMin || xVal == vMax) Color(0xFFFFB74D) else Color.White.copy(alpha = 0.7f),
+                        fontSize = 9.sp,
+                        fontWeight = if (xVal == vMin || xVal == vMax) FontWeight.Bold else FontWeight.Normal
+                    )
+                )
+                val textX = px - tickResult.size.width / 2f
+                val textY = paddingTop + plotHeight + 4.dp.toPx()
+                drawText(tickResult, topLeft = Offset(textX, textY))
+            }
+
+            // X-Axis Title
+            val xTitleResult = textMeasurer.measure(
+                text = xLabel,
+                style = TextStyle(color = Color.White.copy(alpha = 0.85f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            )
+            val xTitleX = paddingLeft + (plotWidth - xTitleResult.size.width) / 2f
+            val xTitleY = paddingTop + plotHeight + 18.dp.toPx()
+            drawText(xTitleResult, topLeft = Offset(xTitleX, xTitleY))
         }
     }
 }

@@ -35,6 +35,17 @@ fun convertTemperatureToKelvin(value: Double, unit: TemperatureUnit): Double? {
     return if (kelvin > 0.0) kelvin else null
 }
 
+fun spectralRadiance(lambdaMeters: Double, temperatureKelvin: Double): Double {
+    if (temperatureKelvin <= 0.0 || lambdaMeters <= 0.0) return 0.0
+    val c1 = 1.1910429723971884e-16
+    val c2 = 0.014387773538277204
+    val x = c2 / (lambdaMeters * temperatureKelvin)
+    if (x > 700.0) return 0.0
+    val expTerm = kotlin.math.exp(x) - 1.0
+    if (expTerm <= 0.0) return 0.0
+    return c1 / (lambdaMeters.pow(5.0) * expTerm)
+}
+
 fun calculateRadiance(
     startWavelengthMeters: Double,
     stopWavelengthMeters: Double,
@@ -46,25 +57,14 @@ fun calculateRadiance(
     val lambdaMax = maxOf(startWavelengthMeters, stopWavelengthMeters)
     if (lambdaMin <= 0.0 || lambdaMax <= 0.0 || lambdaMin == lambdaMax) return 0.0
 
-    val c1 = 1.1910429723971884e-16
-    val c2 = 0.014387773538277204
-
-    fun spectralRadiance(lambda: Double): Double {
-        val x = c2 / (lambda * temperatureKelvin)
-        if (x > 700.0) return 0.0
-        val expTerm = kotlin.math.exp(x) - 1.0
-        if (expTerm <= 0.0) return 0.0
-        return c1 / (lambda.pow(5.0) * expTerm)
-    }
-
     val n = if (steps % 2 != 0) steps + 1 else steps
     val hStep = (lambdaMax - lambdaMin) / n
-    var sum = spectralRadiance(lambdaMin) + spectralRadiance(lambdaMax)
+    var sum = spectralRadiance(lambdaMin, temperatureKelvin) + spectralRadiance(lambdaMax, temperatureKelvin)
 
     for (i in 1 until n) {
         val lambda = lambdaMin + i * hStep
         val factor = if (i % 2 == 0) 2.0 else 4.0
-        sum += factor * spectralRadiance(lambda)
+        sum += factor * spectralRadiance(lambda, temperatureKelvin)
     }
 
     return (hStep / 3.0) * sum
@@ -80,54 +80,38 @@ fun calculateIrradiance(opticalPower: Double, divergenceSr: Double, distance: Do
     return irradiance * atmosphericLoss
 }
 
-fun formatIrradiance(value: Double): String {
-    if (value.isNaN() || value.isInfinite() || value < 0.0) return "Invalid Input"
-    if (value == 0.0 || value < 1e-30) return "0 W/m\u00b2"
+fun formatNumbers(value: Double): String? {
+    if (value.isNaN() || value.isInfinite() || value < 0.0) return null
+    if (value == 0.0 || value < 1e-30) return "0"
     val absVal = abs(value)
     return if (absVal !in 1e-3..<1e5) {
         val exp = kotlin.math.floor(kotlin.math.log10(absVal)).toInt()
         val mantissa = absVal / 10.0.pow(exp.toDouble())
         val roundedMantissa = round(mantissa * 100.0) / 100.0
-        "${roundedMantissa}e$exp W/m\u00b2"
+        "${roundedMantissa}e$exp"
     } else {
         val rounded = round(value * 100.0) / 100.0
         if (abs(rounded - value) < 1e-6 && abs(rounded % 1.0) < 1e-6) {
-            "${rounded.toLong()} W/m\u00b2"
+            "${rounded.toLong()}"
         } else {
             val str = rounded.toString()
             if (str.contains('.')) {
                 val parts = str.split('.')
                 val decimals = parts[1].take(2).padEnd(2, '0')
-                "${parts[0]}.$decimals W/m\u00b2"
+                "${parts[0]}.$decimals"
             } else {
-                "$str W/m\u00b2"
+                str
             }
         }
     }
 }
 
+fun formatIrradiance(value: Double): String {
+    val formatted = formatNumbers(value) ?: return "Invalid Input"
+    return "$formatted W/m²"
+}
+
 fun formatRadiance(value: Double): String {
-    if (value.isNaN() || value.isInfinite() || value < 0.0) return "Invalid Input"
-    if (value == 0.0 || value < 1e-30) return "0 W/sr/m²"
-    val absVal = abs(value)
-    return if (absVal !in 1e-3..<1e5) {
-        val exp = kotlin.math.floor(kotlin.math.log10(absVal)).toInt()
-        val mantissa = absVal / 10.0.pow(exp.toDouble())
-        val roundedMantissa = round(mantissa * 100.0) / 100.0
-        "${roundedMantissa}e$exp W/sr/m²"
-    } else {
-        val rounded = round(value * 100.0) / 100.0
-        if (abs(rounded - value) < 1e-6 && abs(rounded % 1.0) < 1e-6) {
-            "${rounded.toLong()} W/sr/m²"
-        } else {
-            val str = rounded.toString()
-            if (str.contains('.')) {
-                val parts = str.split('.')
-                val decimals = parts[1].take(2).padEnd(2, '0')
-                "${parts[0]}.$decimals W/sr/m²"
-            } else {
-                "$str W/sr/m²"
-            }
-        }
-    }
+    val formatted = formatNumbers(value) ?: return "Invalid Input"
+    return "$formatted W/sr/m²"
 }
