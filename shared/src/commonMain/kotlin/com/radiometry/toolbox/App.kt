@@ -60,6 +60,7 @@ val tools = listOf(
     Tool("Irradiance Analyzer", "Analyze irradiance measurements", Color(0xFF03DAC5)),
     Tool("Spectrum Viewer", "Visualize spectral distributions", Color(0xFF3700B3)),
     Tool("Temperature Converter", "Convert between temperature units", Color(0xFF018786)),
+    Tool("Light source calculator", "Calculate irradiance from a light source", Color(0xFFFF6D00)),
 )
 
 data class Tool(
@@ -188,6 +189,7 @@ fun VisualizationPanel(tool: Tool, modifier: Modifier = Modifier) {
                 "Irradiance Analyzer" -> IrradianceVisualization()
                 "Spectrum Viewer" -> SpectrumVisualization()
                 "Temperature Converter" -> TemperatureVisualization()
+                "Light source calculator" -> LightSourceVisualization()
             }
         }
     }
@@ -819,6 +821,157 @@ fun TemperatureVisualization() {
                 selectedUnit = outputUnit,
                 onUnitSelected = { outputUnit = it },
                 modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+fun calculateIrradiance(opticalPower: Double, divergenceSr: Double, distance: Double, useAtmosphericCompensation: Boolean): Double {
+    if (opticalPower <= 0.0 || divergenceSr <= 0.0 || distance < 0.0) return 0.0
+    val solidAngle = divergenceSr
+    val area = solidAngle * distance * distance
+    val irradiance = opticalPower / area
+    if (!useAtmosphericCompensation) return irradiance
+    val absorptionCoefficient = 0.01
+    val atmosphericLoss = kotlin.math.exp(-absorptionCoefficient * distance)
+    return irradiance * atmosphericLoss
+}
+
+fun formatIrradiance(value: Double): String {
+    if (value.isNaN() || value.isInfinite() || value < 0.0) return "Invalid Input"
+    if (value == 0.0 || value < 1e-30) return "0 W/m\u00b2"
+    val absVal = abs(value)
+    return if (absVal >= 1e5 || absVal < 1e-3) {
+        val exp = kotlin.math.floor(kotlin.math.log10(absVal)).toInt()
+        val mantissa = absVal / 10.0.pow(exp.toDouble())
+        val roundedMantissa = round(mantissa * 100.0) / 100.0
+        "${roundedMantissa}e$exp W/m\u00b2"
+    } else {
+        val rounded = round(value * 100.0) / 100.0
+        if (abs(rounded - value) < 1e-6 && abs(rounded % 1.0) < 1e-6) {
+            "${rounded.toLong()} W/m\u00b2"
+        } else {
+            val str = rounded.toString()
+            if (str.contains('.')) {
+                val parts = str.split('.')
+                val decimals = parts[1].take(2).padEnd(2, '0')
+                "${parts[0]}.$decimals W/m\u00b2"
+            } else {
+                "$str W/m\u00b2"
+            }
+        }
+    }
+}
+
+@Composable
+fun LightSourceVisualization() {
+    var opticalPowerText by remember { mutableStateOf("1.0") }
+    var divergenceText by remember { mutableStateOf("0.1") }
+    var distanceText by remember { mutableStateOf("1.0") }
+    var useAtmosphericCompensation by remember { mutableStateOf(false) }
+
+    val opticalPower = opticalPowerText.toDoubleOrNull()
+    val divergenceSr = divergenceText.toDoubleOrNull()
+    val distance = distanceText.toDoubleOrNull()
+
+    val irradianceResult = if (opticalPower != null && divergenceSr != null && distance != null) {
+        calculateIrradiance(opticalPower, divergenceSr, distance, useAtmosphericCompensation)
+    } else {
+        null
+    }
+
+    val irradianceOutputStr = if (irradianceResult != null) {
+        formatIrradiance(irradianceResult)
+    } else {
+        "Invalid Input"
+    }
+
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Color.White,
+        unfocusedTextColor = Color.White,
+        focusedBorderColor = Color.White,
+        unfocusedBorderColor = Color.White.copy(alpha = 0.6f),
+        cursorColor = Color.White,
+        focusedLabelColor = Color.White,
+        unfocusedLabelColor = Color.White.copy(alpha = 0.8f),
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                .padding(12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Calculated Irradiance",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.7f),
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = irradianceOutputStr,
+                    fontSize = 20.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
+
+        OutlinedTextField(
+            value = opticalPowerText,
+            onValueChange = { opticalPowerText = it },
+            label = { Text("Optical Power (W)", color = Color.White.copy(alpha = 0.8f)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            colors = textFieldColors,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        OutlinedTextField(
+            value = divergenceText,
+            onValueChange = { divergenceText = it },
+            label = { Text("Divergence (sr)", color = Color.White.copy(alpha = 0.8f)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            colors = textFieldColors,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        OutlinedTextField(
+            value = distanceText,
+            onValueChange = { distanceText = it },
+            label = { Text("Distance (m)", color = Color.White.copy(alpha = 0.8f)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            colors = textFieldColors,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { useAtmosphericCompensation = !useAtmosphericCompensation }
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            androidx.compose.material3.Checkbox(
+                checked = useAtmosphericCompensation,
+                onCheckedChange = { useAtmosphericCompensation = it },
+            )
+            Spacer(modifier = Modifier.padding(4.dp))
+            Text(
+                text = "Atmospheric Compensation",
+                color = Color.White,
             )
         }
     }
