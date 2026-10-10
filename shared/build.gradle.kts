@@ -18,37 +18,30 @@ kotlin {
     iosSimulatorArm64()
 
     sourceSets {
-        val commonMain by getting {
+        commonMain {
             dependencies {
                 implementation(compose.foundation)
                 implementation(compose.material3)
                 implementation(compose.runtime)
                 implementation(compose.ui)
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
             }
         }
-        val androidMain by getting {
+        androidMain {
             dependencies {
-                implementation("androidx.compose.ui:ui:1.6.8")
-                implementation("androidx.compose.material3:material3:1.2.1")
-                implementation("androidx.compose.foundation:foundation:1.6.8")
+                implementation("androidx.compose.ui:ui:1.7.8")
+                implementation("androidx.compose.material3:material3:1.3.1")
+                implementation("androidx.compose.foundation:foundation:1.7.8")
             }
         }
-        val iosX64Main by getting
-        val iosArm64Main by getting
-        val iosSimulatorArm64Main by getting
-        val iosMain by creating {
-            dependsOn(commonMain)
-            iosX64Main.dependsOn(this)
-            iosArm64Main.dependsOn(this)
-            iosSimulatorArm64Main.dependsOn(this)
+        iosMain {
             dependencies {
                 implementation(compose.foundation)
                 implementation(compose.material3)
                 implementation(compose.ui)
             }
         }
-        val commonTest by getting {
+        commonTest {
             dependencies {
                 implementation(kotlin("test"))
             }
@@ -58,7 +51,7 @@ kotlin {
 
 android {
     namespace = "com.radiometry.toolbox.shared"
-    compileSdk = 34
+    compileSdk = 35
     defaultConfig {
         minSdk = 24
     }
