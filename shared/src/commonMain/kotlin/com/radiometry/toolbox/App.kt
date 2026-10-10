@@ -826,14 +826,13 @@ fun TemperatureVisualization() {
     }
 }
 
-fun calculateIrradiance(opticalPower: Double, divergenceSr: Double, distance: Double, useAtmosphericCompensation: Boolean): Double {
+fun calculateIrradiance(opticalPower: Double, divergenceSr: Double, distance: Double, useAtmosphericCompensation: Boolean, extinctionCoefficient: Double): Double {
     if (opticalPower <= 0.0 || divergenceSr <= 0.0 || distance < 0.0) return 0.0
     val solidAngle = divergenceSr
     val area = solidAngle * distance * distance
     val irradiance = opticalPower / area
     if (!useAtmosphericCompensation) return irradiance
-    val absorptionCoefficient = 0.01
-    val atmosphericLoss = kotlin.math.exp(-absorptionCoefficient * distance)
+    val atmosphericLoss = kotlin.math.exp(-extinctionCoefficient * distance)
     return irradiance * atmosphericLoss
 }
 
@@ -869,13 +868,15 @@ fun LightSourceVisualization() {
     var divergenceText by remember { mutableStateOf("0.1") }
     var distanceText by remember { mutableStateOf("1.0") }
     var useAtmosphericCompensation by remember { mutableStateOf(false) }
+    var extinctionText by remember { mutableStateOf("0.01") }
 
     val opticalPower = opticalPowerText.toDoubleOrNull()
     val divergenceSr = divergenceText.toDoubleOrNull()
     val distance = distanceText.toDoubleOrNull()
+    val extinctionCoefficient = extinctionText.toDoubleOrNull() ?: 0.0
 
     val irradianceResult = if (opticalPower != null && divergenceSr != null && distance != null) {
-        calculateIrradiance(opticalPower, divergenceSr, distance, useAtmosphericCompensation)
+        calculateIrradiance(opticalPower, divergenceSr, distance, useAtmosphericCompensation, extinctionCoefficient)
     } else {
         null
     }
@@ -972,6 +973,18 @@ fun LightSourceVisualization() {
             Text(
                 text = "Atmospheric Compensation",
                 color = Color.White,
+            )
+        }
+
+        if (useAtmosphericCompensation) {
+            OutlinedTextField(
+                value = extinctionText,
+                onValueChange = { extinctionText = it },
+                label = { Text("Extinction Coefficient (1/m)", color = Color.White.copy(alpha = 0.8f)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                colors = textFieldColors,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
