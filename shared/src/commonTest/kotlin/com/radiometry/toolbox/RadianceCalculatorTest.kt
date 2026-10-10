@@ -1,0 +1,89 @@
+package com.radiometry.toolbox
+
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class RadianceCalculatorTest {
+
+    @Test
+    fun testConvertToWavelengthInMeters() {
+        // Nanometers (380 nm -> 3.8e-7 m)
+        val nmResult = convertToWavelengthInMeters(380.0, WavelengthUnit.NANOMETERS)
+        assertNotNull(nmResult)
+        assertEquals(3.8e-7, nmResult, 1e-12)
+
+        // Micrometers (10.0 µm -> 1.0e-5 m)
+        val umResult = convertToWavelengthInMeters(10.0, WavelengthUnit.MICROMETERS)
+        assertNotNull(umResult)
+        assertEquals(1.0e-5, umResult, 1e-12)
+
+        // Inverse Centimeters (10000 cm⁻¹ -> 1.0 µm = 1.0e-6 m)
+        val cmResult = convertToWavelengthInMeters(10000.0, WavelengthUnit.INVERSE_CENTIMETERS)
+        assertNotNull(cmResult)
+        assertEquals(1.0e-6, cmResult, 1e-12)
+
+        // Invalid inputs
+        assertNull(convertToWavelengthInMeters(0.0, WavelengthUnit.NANOMETERS))
+        assertNull(convertToWavelengthInMeters(-100.0, WavelengthUnit.MICROMETERS))
+        assertNull(convertToWavelengthInMeters(Double.NaN, WavelengthUnit.INVERSE_CENTIMETERS))
+    }
+
+    @Test
+    fun testConvertTemperatureToKelvin() {
+        // Celsius (0 °C -> 273.15 K)
+        val cResult = convertTemperatureToKelvin(0.0, TemperatureUnit.CELSIUS)
+        assertNotNull(cResult)
+        assertEquals(273.15, cResult, 0.001)
+
+        // Kelvin (300 K -> 300 K)
+        val kResult = convertTemperatureToKelvin(300.0, TemperatureUnit.KELVIN)
+        assertNotNull(kResult)
+        assertEquals(300.0, kResult, 0.001)
+
+        // Fahrenheit (32 °F -> 273.15 K)
+        val fResult = convertTemperatureToKelvin(32.0, TemperatureUnit.FAHRENHEIT)
+        assertNotNull(fResult)
+        assertEquals(273.15, fResult, 0.001)
+
+        // Below absolute zero
+        assertNull(convertTemperatureToKelvin(-300.0, TemperatureUnit.CELSIUS))
+        assertNull(convertTemperatureToKelvin(-10.0, TemperatureUnit.KELVIN))
+    }
+
+    @Test
+    fun testCalculateRadiance() {
+        // Solar visible range (380 - 780 nm at 5800 K)
+        val startMeters = 380e-9
+        val stopMeters = 780e-9
+        val tempK = 5800.0
+        val solarRadiance = calculateRadiance(startMeters, stopMeters, tempK)
+        assertTrue(solarRadiance > 5.0e6, "Solar radiance should be > 5e6 W/sr/m², was $solarRadiance")
+
+        // Room temp IR (8 - 14 µm at 300 K)
+        val irStart = 8e-6
+        val irStop = 14e-6
+        val roomTempK = 300.0
+        val irRadiance = calculateRadiance(irStart, irStop, roomTempK)
+        assertTrue(irRadiance in 50.0..60.0, "Room temp IR radiance should be ~54.9 W/sr/m², was $irRadiance")
+
+        // Equal start and stop wavelengths -> 0.0
+        assertEquals(0.0, calculateRadiance(1e-6, 1e-6, 300.0), 1e-12)
+
+        // Invalid temperature -> 0.0
+        assertEquals(0.0, calculateRadiance(380e-9, 780e-9, -100.0), 1e-12)
+    }
+
+    @Test
+    fun testFormatRadiance() {
+        assertEquals("Invalid Input", formatRadiance(Double.NaN))
+        assertEquals("Invalid Input", formatRadiance(-10.0))
+        assertEquals("0 W/sr/m²", formatRadiance(0.0))
+
+        assertEquals("29.80 W/sr/m²", formatRadiance(29.8021))
+        assertEquals("2.58e7 W/sr/m²", formatRadiance(25800000.0))
+        assertEquals("1.23e-4 W/sr/m²", formatRadiance(0.000123))
+    }
+}
