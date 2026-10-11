@@ -183,16 +183,51 @@ fun RadianceVisualization(
             WavelengthUnitDropdown(
                 label = "Wavelength Unit",
                 selectedUnit = wavelengthUnit,
-                onUnitSelected = {
-                    wavelengthUnit = it
-                    settingsManager.putString("key_radiance_wavelength_unit", it.name)
+                onUnitSelected = { newUnit ->
+                    if (newUnit != wavelengthUnit) {
+                        val oldUnit = wavelengthUnit
+
+                        val currentStartVal = startWavelengthText.toDoubleOrNull()
+                        if (currentStartVal != null) {
+                            val convertedStart = convertWavelength(currentStartVal, oldUnit, newUnit)
+                            if (convertedStart != null) {
+                                val formatted = formatNumbers(convertedStart)
+                                startWavelengthText = formatted
+                                settingsManager.putString("key_radiance_start_wavelength", formatted)
+                            }
+                        }
+
+                        val currentStopVal = stopWavelengthText.toDoubleOrNull()
+                        if (currentStopVal != null) {
+                            val convertedStop = convertWavelength(currentStopVal, oldUnit, newUnit)
+                            if (convertedStop != null) {
+                                val formatted = formatNumbers(convertedStop)
+                                stopWavelengthText = formatted
+                                settingsManager.putString("key_radiance_stop_wavelength", formatted)
+                            }
+                        }
+
+                        wavelengthUnit = newUnit
+                        settingsManager.putString("key_radiance_wavelength_unit", newUnit.name)
+                    }
                 },
                 modifier = Modifier.weight(1f),
             )
             UnitDropdown(
                 label = "Temperature Unit",
                 selectedUnit = temperatureUnit,
-                onUnitSelected = { onTemperatureUnitChange(it) },
+                onUnitSelected = { newUnit ->
+                    if (newUnit != temperatureUnit) {
+                        val currentTemp = temperatureText.toDoubleOrNull()
+                        if (currentTemp != null) {
+                            val converted = convertTemperature(currentTemp, temperatureUnit, newUnit)
+                            if (!converted.isNaN()) {
+                                onTemperatureTextChange(formatNumbers(converted))
+                            }
+                        }
+                        onTemperatureUnitChange(newUnit)
+                    }
+                },
                 modifier = Modifier.weight(1f),
             )
         }

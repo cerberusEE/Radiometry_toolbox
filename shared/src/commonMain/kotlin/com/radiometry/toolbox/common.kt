@@ -48,6 +48,15 @@ fun convertToWavelengthInMeters(value: Double, unit: WavelengthUnit): Double? {
     }
 }
 
+fun convertWavelength(value: Double, fromUnit: WavelengthUnit, toUnit: WavelengthUnit): Double? {
+    val meters = convertToWavelengthInMeters(value, fromUnit) ?: return null
+    return when (toUnit) {
+        WavelengthUnit.NANOMETERS -> meters * 1e9
+        WavelengthUnit.MICROMETERS -> meters * 1e6
+        WavelengthUnit.INVERSE_CENTIMETERS -> 1.0 / (100.0 * meters)
+    }
+}
+
 fun convertTemperatureToKelvin(value: Double, unit: TemperatureUnit): Double {
     if (value.isNaN() || value.isInfinite()) return value
     val kelvin = when (unit) {
@@ -177,6 +186,7 @@ fun formatIrradiance(value: Double): String {
 }
 
 fun formatRadiance(value: Double): String {
+    if (value.isNaN() || value < 0.0) return "Invalid Input"
     val formatted = formatNumbers(value)
     return "$formatted W/sr/m²"
 }

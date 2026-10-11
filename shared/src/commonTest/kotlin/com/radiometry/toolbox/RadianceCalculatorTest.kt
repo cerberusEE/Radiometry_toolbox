@@ -49,8 +49,36 @@ class RadianceCalculatorTest {
         assertEquals(273.15, fResult, 0.001)
 
         // Below absolute zero
-        assertNull(convertTemperatureToKelvin(-300.0, TemperatureUnit.CELSIUS))
-        assertNull(convertTemperatureToKelvin(-10.0, TemperatureUnit.KELVIN))
+        assertTrue(convertTemperatureToKelvin(-300.0, TemperatureUnit.CELSIUS).isNaN())
+        assertTrue(convertTemperatureToKelvin(-10.0, TemperatureUnit.KELVIN).isNaN())
+    }
+
+    @Test
+    fun testConvertWavelength() {
+        // Nanometers to Micrometers (380 nm -> 0.38 µm)
+        val nmToUm = convertWavelength(380.0, WavelengthUnit.NANOMETERS, WavelengthUnit.MICROMETERS)
+        assertNotNull(nmToUm)
+        assertEquals(0.38, nmToUm, 1e-6)
+
+        // Micrometers to Nanometers (0.78 µm -> 780 nm)
+        val umToNm = convertWavelength(0.78, WavelengthUnit.MICROMETERS, WavelengthUnit.NANOMETERS)
+        assertNotNull(umToNm)
+        assertEquals(780.0, umToNm, 1e-6)
+
+        // Nanometers to Inverse Centimeters (500 nm -> 20000 cm⁻¹)
+        val nmToCm = convertWavelength(500.0, WavelengthUnit.NANOMETERS, WavelengthUnit.INVERSE_CENTIMETERS)
+        assertNotNull(nmToCm)
+        assertEquals(20000.0, nmToCm, 1e-4)
+
+        // Inverse Centimeters to Nanometers (20000 cm⁻¹ -> 500 nm)
+        val cmToNm = convertWavelength(20000.0, WavelengthUnit.INVERSE_CENTIMETERS, WavelengthUnit.NANOMETERS)
+        assertNotNull(cmToNm)
+        assertEquals(500.0, cmToNm, 1e-4)
+
+        // Invalid inputs
+        assertNull(convertWavelength(0.0, WavelengthUnit.NANOMETERS, WavelengthUnit.MICROMETERS))
+        assertNull(convertWavelength(-100.0, WavelengthUnit.MICROMETERS, WavelengthUnit.NANOMETERS))
+        assertNull(convertWavelength(Double.NaN, WavelengthUnit.INVERSE_CENTIMETERS, WavelengthUnit.NANOMETERS))
     }
 
     @Test
