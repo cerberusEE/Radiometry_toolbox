@@ -38,6 +38,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.pow
@@ -138,6 +139,8 @@ fun RadianceVisualization(
                     Text(
                         if (wavelengthUnit == WavelengthUnit.INVERSE_CENTIMETERS) "Start Wavenumber" else "Start Wavelength",
                         color = Color.White.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 singleLine = true,
@@ -155,6 +158,8 @@ fun RadianceVisualization(
                     Text(
                         if (wavelengthUnit == WavelengthUnit.INVERSE_CENTIMETERS) "Stop Wavenumber" else "Stop Wavelength",
                         color = Color.White.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 singleLine = true,
@@ -487,17 +492,24 @@ fun WavelengthUnitDropdown(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(horizontalAlignment = Alignment.Start) {
+                Column(
+                    horizontalAlignment = Alignment.Start,
+                    modifier = Modifier.weight(1f, fill = false),
+                ) {
                     Text(
                         text = label,
                         fontSize = 10.sp,
                         color = Color.White.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = selectedUnit.label,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Text(

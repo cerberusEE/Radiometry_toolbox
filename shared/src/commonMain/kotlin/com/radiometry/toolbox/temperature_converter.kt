@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
@@ -61,6 +62,8 @@ fun BlackbodyColorBox(kelvin: Double, modifier: Modifier = Modifier) {
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = textColor.copy(alpha = 0.85f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
@@ -68,6 +71,8 @@ fun BlackbodyColorBox(kelvin: Double, modifier: Modifier = Modifier) {
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = textColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -206,17 +211,24 @@ fun UnitDropdown(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(horizontalAlignment = Alignment.Start) {
+                Column(
+                    horizontalAlignment = Alignment.Start,
+                    modifier = Modifier.weight(1f, fill = false),
+                ) {
                     Text(
                         text = label,
                         fontSize = 10.sp,
                         color = Color.White.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = selectedUnit.label,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Text(

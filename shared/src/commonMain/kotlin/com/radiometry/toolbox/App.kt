@@ -5,11 +5,15 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -17,6 +21,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -28,14 +33,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 
 // Define the available tools in the toolbox
 val tools = listOf(
-    Tool("Temperature Converter", "Convert between temperature units", Color(0xFF018786)),
     Tool("Radiance Calculator", "Calculate radiance values", Color(0xFF6200EE)),
+    Tool("Temperature Converter", "Convert between temperature units", Color(0xFF018786)),
     Tool("Light source calculator", "Calculate irradiance from a light source", Color(0xFFFF6D00)),
 )
 
@@ -110,6 +116,13 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
     var dragAccumulatorX by remember { mutableFloatStateOf(0f) }
     var dragAccumulatorY by remember { mutableFloatStateOf(0f) }
 
+    val scrollState = rememberScrollState()
+
+    // Reset scroll position to top when switching tools
+    LaunchedEffect(currentToolIndex) {
+        scrollState.scrollTo(0)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -125,7 +138,6 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                         dragAccumulatorY = 0f
                     },
                 ) { change, dragAmount ->
-                    change.consume()
                     dragAccumulatorX += dragAmount.x
                     dragAccumulatorY += dragAmount.y
 
@@ -134,6 +146,7 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                             dragAccumulatorY
                         ))
                     ) {
+                        change.consume()
                         if ((dragAccumulatorX < 0f) && (currentToolIndex < (tools.size - 1))) {
                             // Swipe LEFT -> next tool
                             currentToolIndex++
@@ -148,7 +161,7 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                         dragAccumulatorX = 0f
                         dragAccumulatorY = 0f
                     }
-                    // Vertical swipe detection for settings expansion
+                    // Vertical drag detection
                     else if ((abs(dragAccumulatorY) > 80f) && (abs(dragAccumulatorY) > abs(
                             dragAccumulatorX
                         ))
@@ -163,9 +176,9 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp)
+                .height(56.dp)
                 .background(MaterialTheme.colorScheme.primaryContainer)
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -174,28 +187,37 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 16.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
             )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "${currentToolIndex + 1}/${tools.size}",
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                 fontSize = 16.sp,
-                modifier = Modifier.padding(end = 16.dp),
+                fontWeight = FontWeight.Medium,
             )
         }
 
-        // Visualization panel showing tool output
-        VisualizationPanel(
-            tool = currentTool,
-            settingsManager = settingsManager,
-            temperatureText = sharedTemperatureText,
-            onTemperatureTextChange = onTemperatureTextChange,
-            temperatureUnit = sharedTemperatureUnit,
-            onTemperatureUnitChange = onTemperatureUnitChange,
+        // Scrollable content area for visualization panel
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(scrollState)
                 .padding(16.dp),
-        )
+        ) {
+            VisualizationPanel(
+                tool = currentTool,
+                settingsManager = settingsManager,
+                temperatureText = sharedTemperatureText,
+                onTemperatureTextChange = onTemperatureTextChange,
+                temperatureUnit = sharedTemperatureUnit,
+                onTemperatureUnitChange = onTemperatureUnitChange,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
