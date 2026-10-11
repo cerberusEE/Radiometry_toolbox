@@ -48,10 +48,7 @@ data class Tool(
 @Composable
 fun App() {
     MaterialTheme {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
-        ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             ToolboxApp()
         }
     }
@@ -60,21 +57,37 @@ fun App() {
 @Composable
 fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
     var currentToolIndex by remember {
-        mutableIntStateOf(settingsManager.getInt("key_current_tool_index", 0).coerceIn(0, tools.size - 1))
+        mutableIntStateOf(
+            settingsManager.getInt("key_current_tool_index", 0).coerceIn(0, tools.size - 1)
+        )
     }
     var expandedSettingIndex by remember { mutableIntStateOf(-1) }
 
     var sharedTemperatureText by remember {
         val saved = settingsManager.getString("key_shared_temperature", "")
-        val initial = saved.ifEmpty { settingsManager.getString("key_temp_input", settingsManager.getString("key_radiance_temperature", "5800")) }
+        val initial = saved.ifEmpty {
+            settingsManager.getString(
+                "key_temp_input",
+                settingsManager.getString("key_radiance_temperature", "5800")
+            )
+        }
         mutableStateOf(initial)
     }
 
     var sharedTemperatureUnit by remember {
         val savedName = settingsManager.getString("key_shared_temperature_unit", "")
         val initialName =
-            savedName.ifEmpty { settingsManager.getString("key_temp_input_unit", settingsManager.getString("key_radiance_temperature_unit", TemperatureUnit.KELVIN.name)) }
-        val unit = runCatching { TemperatureUnit.valueOf(initialName) }.getOrDefault(TemperatureUnit.KELVIN)
+            savedName.ifEmpty {
+                settingsManager.getString(
+                    "key_temp_input_unit",
+                    settingsManager.getString(
+                        "key_radiance_temperature_unit",
+                        TemperatureUnit.KELVIN.name
+                    )
+                )
+            }
+        val unit =
+            runCatching { TemperatureUnit.valueOf(initialName) }.getOrDefault(TemperatureUnit.KELVIN)
         mutableStateOf(unit)
     }
 
@@ -91,12 +104,12 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
         settingsManager.putString("key_temp_input_unit", newUnit.name)
         settingsManager.putString("key_radiance_temperature_unit", newUnit.name)
     }
-    
+
     val currentTool = tools[currentToolIndex]
 
     var dragAccumulatorX by remember { mutableFloatStateOf(0f) }
     var dragAccumulatorY by remember { mutableFloatStateOf(0f) }
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -115,9 +128,12 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                     change.consume()
                     dragAccumulatorX += dragAmount.x
                     dragAccumulatorY += dragAmount.y
-                    
+
                     // Horizontal swipe detection for tool navigation
-                    if ((abs(dragAccumulatorX) > 80f) && (abs(dragAccumulatorX) > abs(dragAccumulatorY))) {
+                    if ((abs(dragAccumulatorX) > 80f) && (abs(dragAccumulatorX) > abs(
+                            dragAccumulatorY
+                        ))
+                    ) {
                         if ((dragAccumulatorX < 0f) && (currentToolIndex < (tools.size - 1))) {
                             // Swipe LEFT -> next tool
                             currentToolIndex++
@@ -131,9 +147,12 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                         }
                         dragAccumulatorX = 0f
                         dragAccumulatorY = 0f
-                    } 
+                    }
                     // Vertical swipe detection for settings expansion
-                    else if ((abs(dragAccumulatorY) > 80f) && (abs(dragAccumulatorY) > abs(dragAccumulatorX))) {
+                    else if ((abs(dragAccumulatorY) > 80f) && (abs(dragAccumulatorY) > abs(
+                            dragAccumulatorX
+                        ))
+                    ) {
                         dragAccumulatorX = 0f
                         dragAccumulatorY = 0f
                     }
@@ -164,7 +183,7 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                 modifier = Modifier.padding(end = 16.dp),
             )
         }
-        
+
         // Visualization panel showing tool output
         VisualizationPanel(
             tool = currentTool,
@@ -198,30 +217,25 @@ fun VisualizationPanel(
             contentColor = contentColorFor(tool.color),
         ),
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-        ) {
-            // Tool-specific visualization / output
-            when (tool.name) {
-                "Radiance Calculator" -> RadianceVisualization(
-                    settingsManager = settingsManager,
-                    temperatureText = temperatureText,
-                    onTemperatureTextChange = onTemperatureTextChange,
-                    temperatureUnit = temperatureUnit,
-                    onTemperatureUnitChange = onTemperatureUnitChange,
-                )
-                "Temperature Converter" -> TemperatureVisualization(
-                    settingsManager = settingsManager,
-                    temperatureText = temperatureText,
-                    onTemperatureTextChange = onTemperatureTextChange,
-                    temperatureUnit = temperatureUnit,
-                    onTemperatureUnitChange = onTemperatureUnitChange,
-                )
-                "Light source calculator" -> LightSourceVisualization(settingsManager)
-            }
+        // Tool-specific visualization / output
+        when (tool.name) {
+            "Radiance Calculator" -> RadianceVisualization(
+                settingsManager = settingsManager,
+                temperatureText = temperatureText,
+                onTemperatureTextChange = onTemperatureTextChange,
+                temperatureUnit = temperatureUnit,
+                onTemperatureUnitChange = onTemperatureUnitChange,
+            )
+
+            "Temperature Converter" -> TemperatureConverter(
+                settingsManager = settingsManager,
+                temperatureText = temperatureText,
+                onTemperatureTextChange = onTemperatureTextChange,
+                temperatureUnit = temperatureUnit,
+                onTemperatureUnitChange = onTemperatureUnitChange,
+            )
+
+            "Light source calculator" -> LightSourceVisualization(settingsManager)
         }
     }
 }

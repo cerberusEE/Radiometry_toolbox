@@ -57,7 +57,7 @@ fun BlackbodyColorBox(kelvin: Double, modifier: Modifier = Modifier) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "Blackbody Color (${formatTemperature(kelvin)} K)",
+                text = "Blackbody Color (${formatTemperature(kelvin, TemperatureUnit.KELVIN)})",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = textColor.copy(alpha = 0.85f),
@@ -74,7 +74,7 @@ fun BlackbodyColorBox(kelvin: Double, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun TemperatureVisualization(
+fun TemperatureConverter(
     settingsManager: SettingsManager,
     temperatureText: String,
     onTemperatureTextChange: (String) -> Unit,
@@ -82,19 +82,18 @@ fun TemperatureVisualization(
     onTemperatureUnitChange: (TemperatureUnit) -> Unit,
 ) {
     var outputUnit by remember {
-        val savedName = settingsManager.getString("key_temp_output_unit", TemperatureUnit.CELSIUS.name)
-        mutableStateOf(runCatching { TemperatureUnit.valueOf(savedName) }.getOrDefault(TemperatureUnit.CELSIUS))
+        val savedName =
+            settingsManager.getString("key_temp_output_unit", TemperatureUnit.CELSIUS.name)
+        mutableStateOf(
+            runCatching { TemperatureUnit.valueOf(savedName) }.getOrDefault(
+                TemperatureUnit.CELSIUS
+            )
+        )
     }
 
     val inputValue = temperatureText.toDoubleOrNull()
-    val convertedValue = inputValue?.let { convertTemperature(it, temperatureUnit, outputUnit) }
-    val convertedKelvin = inputValue?.let { value ->
-        when (temperatureUnit) {
-            TemperatureUnit.CELSIUS -> value + 273.15
-            TemperatureUnit.KELVIN -> value
-            TemperatureUnit.FAHRENHEIT -> ((value - 32.0) * 5.0 / 9.0) + 273.15
-        }
-    }
+    val convertedValue = convertTemperature(inputValue ?: 0.0, temperatureUnit, outputUnit)
+    val convertedKelvin = convertTemperatureToKelvin(inputValue ?: 0.0, temperatureUnit)
 
     Column(
         modifier = Modifier
@@ -119,9 +118,9 @@ fun TemperatureVisualization(
                     color = Color.White.copy(alpha = 0.7f),
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                if (convertedValue != null) {
+                if (!convertedValue.isNaN()) {
                     Text(
-                        text = "${formatTemperature(convertedValue)} ${outputUnit.symbol}",
+                        text = formatTemperature(convertedValue, outputUnit),
                         fontSize = 22.sp,
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
@@ -138,9 +137,7 @@ fun TemperatureVisualization(
         }
 
         // Blackbody Color Box (below conversion results)
-        if (convertedKelvin != null) {
-            BlackbodyColorBox(kelvin = convertedKelvin)
-        }
+        BlackbodyColorBox(kelvin = convertedKelvin)
 
         // Input temperature text field
         OutlinedTextField(
@@ -249,7 +246,7 @@ fun UnitDropdown(
 
 fun kelvinToBlackbodyColor(kelvin: Double): Color {
     // Below 700 K (~427°C), blackbody radiation is invisible to the human eye (infrared)
-    if (kelvin < 700.0) {
+    if (kelvin < 700.0 || kelvin.isNaN()) {
         return Color.Black
     }
 
@@ -301,36 +298,7 @@ fun blackbodyColorDescription(kelvin: Double): String {
         kelvin < 6500.0 -> "Daylight White"
         kelvin < 9000.0 -> "Cool White"
         kelvin < 15000.0 -> "Sky Blue"
-        else -> "Deep Stellar Blue"
-    }
-}
-
-fun convertTemperature(value: Double, fromUnit: TemperatureUnit, toUnit: TemperatureUnit): Double {
-    val tempInKelvin = when (fromUnit) {
-        TemperatureUnit.CELSIUS -> value + 273.15
-        TemperatureUnit.KELVIN -> value
-        TemperatureUnit.FAHRENHEIT -> ((value - 32.0) * 5.0 / 9.0) + 273.15
-    }
-    return when (toUnit) {
-        TemperatureUnit.CELSIUS -> tempInKelvin - 273.15
-        TemperatureUnit.KELVIN -> tempInKelvin
-        TemperatureUnit.FAHRENHEIT -> ((tempInKelvin - 273.15) * 9.0 / 5.0) + 32.0
-    }
-}
-
-fun formatTemperature(value: Double): String {
-    if (value.isNaN() || value.isInfinite()) return "N/A"
-    val rounded = round(value * 100.0) / 100.0
-    return if (abs(rounded % 1.0) < 0.0001) {
-        rounded.toLong().toString()
-    } else {
-        val str = rounded.toString()
-        if (str.contains('.')) {
-            val parts = str.split('.')
-            val decimals = parts[1].take(2)
-            "${parts[0]}.$decimals"
-        } else {
-            str
-        }
+        kelvin >= 15000.0 -> "Deep Stellar Blue"
+        else -> "Unknown"
     }
 }

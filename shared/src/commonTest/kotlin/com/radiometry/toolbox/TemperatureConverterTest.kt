@@ -7,6 +7,21 @@ import kotlin.test.assertTrue
 class TemperatureConverterTest {
 
     @Test
+    fun testInvalidTemperatures() {
+        val result1 = convertTemperature(-1.0, TemperatureUnit.KELVIN, TemperatureUnit.CELSIUS)
+        assertTrue(result1.isNaN())
+
+        val result2 = convertTemperature(-1000.0, TemperatureUnit.CELSIUS, TemperatureUnit.CELSIUS)
+        assertTrue(result2.isNaN())
+
+        val result3 = convertTemperature(Double.POSITIVE_INFINITY, TemperatureUnit.FAHRENHEIT, TemperatureUnit.CELSIUS)
+        assertTrue(result3.isInfinite())
+
+        val result4 = convertTemperature(Double.NEGATIVE_INFINITY, TemperatureUnit.FAHRENHEIT, TemperatureUnit.CELSIUS)
+        assertTrue(result4.isInfinite())
+    }
+
+    @Test
     fun testCelsiusToKelvin() {
         val result = convertTemperature(0.0, TemperatureUnit.CELSIUS, TemperatureUnit.KELVIN)
         assertEquals(273.15, result, 0.001)
@@ -22,6 +37,11 @@ class TemperatureConverterTest {
     fun testKelvinToCelsius() {
         val result = convertTemperature(300.0, TemperatureUnit.KELVIN, TemperatureUnit.CELSIUS)
         assertEquals(26.85, result, 0.001)
+    }
+    @Test
+    fun testKelvinToFahrenheit() {
+        val result = convertTemperature(300.0, TemperatureUnit.KELVIN, TemperatureUnit.FAHRENHEIT)
+        assertEquals(80.33, result, 0.01)
     }
 
     @Test
@@ -50,10 +70,13 @@ class TemperatureConverterTest {
 
     @Test
     fun testFormatTemperature() {
-        assertEquals("300", formatTemperature(300.0))
-        assertEquals("26.85", formatTemperature(26.850012))
-        assertEquals("-40", formatTemperature(-40.0))
-        assertEquals("98.6", formatTemperature(98.6))
+        assertEquals("300 " + TemperatureUnit.CELSIUS.symbol, formatTemperature(300.0, TemperatureUnit.CELSIUS))
+        assertEquals("26.85 " + TemperatureUnit.KELVIN.symbol, formatTemperature(26.850012, TemperatureUnit.KELVIN))
+        assertEquals("-40 " + TemperatureUnit.CELSIUS.symbol, formatTemperature(-40.0, TemperatureUnit.CELSIUS))
+        assertEquals("98.60 " + TemperatureUnit.CELSIUS.symbol, formatTemperature(98.6, TemperatureUnit.CELSIUS))
+        assertEquals("1.0e-6 " + TemperatureUnit.CELSIUS.symbol, formatTemperature(1e-6, TemperatureUnit.CELSIUS))
+        assertEquals("1.0e6 " + TemperatureUnit.CELSIUS.symbol, formatTemperature(1e6, TemperatureUnit.CELSIUS))
+        assertEquals("-1.0e-6 " + TemperatureUnit.CELSIUS.symbol, formatTemperature(-1e-6, TemperatureUnit.CELSIUS))
     }
 
     @Test

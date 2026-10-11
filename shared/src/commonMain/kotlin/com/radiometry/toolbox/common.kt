@@ -16,6 +16,29 @@ enum class TemperatureUnit(val symbol: String, val label: String) {
     FAHRENHEIT("°F", "Fahrenheit"),
 }
 
+data class FileData(
+    val x: DoubleArray,
+    val y: DoubleArray
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || this::class != other::class) return false
+
+        other as FileData
+
+        if (!x.contentEquals(other.x)) return false
+        if (!y.contentEquals(other.y)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = x.contentHashCode()
+        result = 31 * result + y.contentHashCode()
+        return result
+    }
+}
+
 fun convertToWavelengthInMeters(value: Double, unit: WavelengthUnit): Double? {
     if (value <= 0.0 || value.isNaN() || value.isInfinite()) return null
     return when (unit) {
@@ -25,14 +48,45 @@ fun convertToWavelengthInMeters(value: Double, unit: WavelengthUnit): Double? {
     }
 }
 
-fun convertTemperatureToKelvin(value: Double, unit: TemperatureUnit): Double? {
-    if (value.isNaN() || value.isInfinite()) return null
+fun convertTemperatureToKelvin(value: Double, unit: TemperatureUnit): Double {
+    if (value.isNaN() || value.isInfinite()) return value
     val kelvin = when (unit) {
         TemperatureUnit.CELSIUS -> value + 273.15
         TemperatureUnit.KELVIN -> value
         TemperatureUnit.FAHRENHEIT -> ((value - 32.0) * 5.0 / 9.0) + 273.15
     }
-    return if (kelvin > 0.0) kelvin else null
+    return if (kelvin >= 0.0) kelvin else Double.NaN
+}
+fun convertTemperature(value: Double, fromUnit: TemperatureUnit, toUnit: TemperatureUnit): Double {
+    val tempInKelvin = convertTemperatureToKelvin(value, fromUnit)
+    return when (toUnit) {
+        TemperatureUnit.CELSIUS -> tempInKelvin - 273.15
+        TemperatureUnit.KELVIN -> tempInKelvin
+        TemperatureUnit.FAHRENHEIT -> ((tempInKelvin - 273.15) * 9.0 / 5.0) + 32.0
+    }
+}
+fun calculateSpectralRadianceForUnit(
+    xInUserUnit: Double,
+    wavelengthUnit: WavelengthUnit,
+    tempKelvin: Double,
+): Double {
+    if (xInUserUnit <= 0.0 || tempKelvin <= 0.0) return 0.0
+    return when (wavelengthUnit) {
+        WavelengthUnit.NANOMETERS -> {
+            val lambdaMeters = xInUserUnit * 1e-9
+            spectralRadiance(lambdaMeters, tempKelvin) * 1e-9
+        }
+
+        WavelengthUnit.MICROMETERS -> {
+            val lambdaMeters = xInUserUnit * 1e-6
+            spectralRadiance(lambdaMeters, tempKelvin) * 1e-6
+        }
+
+        WavelengthUnit.INVERSE_CENTIMETERS -> {
+            val lambdaMeters = 1.0 / (100.0 * xInUserUnit)
+            spectralRadiance(lambdaMeters, tempKelvin) * (100.0 * lambdaMeters * lambdaMeters)
+        }
+    }
 }
 
 fun spectralRadiance(lambdaMeters: Double, temperatureKelvin: Double): Double {
@@ -59,7 +113,10 @@ fun calculateRadiance(
 
     val n = if (steps % 2 != 0) steps + 1 else steps
     val hStep = (lambdaMax - lambdaMin) / n
-    var sum = spectralRadiance(lambdaMin, temperatureKelvin) + spectralRadiance(lambdaMax, temperatureKelvin)
+    var sum = spectralRadiance(lambdaMin, temperatureKelvin) + spectralRadiance(
+        lambdaMax,
+        temperatureKelvin
+    )
 
     for (i in 1 until n) {
         val lambda = lambdaMin + i * hStep
@@ -70,23 +127,29 @@ fun calculateRadiance(
     return (hStep / 3.0) * sum
 }
 
-fun calculateIrradiance(opticalPower: Double, divergenceSr: Double, distance: Double, useAtmosphericCompensation: Boolean, extinctionCoefficient: Double): Double {
-    if (opticalPower <= 0.0 || divergenceSr <= 0.0 || distance < 0.0) return 0.0
-    val solidAngle = divergenceSr
-    val area = solidAngle * distance * distance
+fun calculateIrradiance(
+    opticalPower: Double,
+    divergenceSr: Double,
+    distance: Double,
+    useAtmosphericCompensation: Boolean,
+    extinctionCoefficient: Double
+): Double {
+    if (divergenceSr <= 0.0 || distance < 0.0) return 0.0
+    val area = divergenceSr * distance * distance
     val irradiance = opticalPower / area
     if (!useAtmosphericCompensation) return irradiance
     val atmosphericLoss = kotlin.math.exp(-extinctionCoefficient * distance)
     return irradiance * atmosphericLoss
 }
 
-fun formatNumbers(value: Double): String? {
-    if (value.isNaN() || value.isInfinite() || value < 0.0) return null
-    if (value == 0.0 || value < 1e-30) return "0"
+fun formatNumbers(value: Double): String {
+    if (value.isNaN()) return "NaN"
+    if (value.isInfinite()) return "Inf"
+    if (abs(value) < 1e-30) return "0"
     val absVal = abs(value)
     return if (absVal !in 1e-3..<1e5) {
         val exp = kotlin.math.floor(kotlin.math.log10(absVal)).toInt()
-        val mantissa = absVal / 10.0.pow(exp.toDouble())
+        val mantissa = value / 10.0.pow(exp.toDouble())
         val roundedMantissa = round(mantissa * 100.0) / 100.0
         "${roundedMantissa}e$exp"
     } else {
@@ -105,13 +168,50 @@ fun formatNumbers(value: Double): String? {
         }
     }
 }
-
+fun formatTemperature(value: Double, temperatureUnit: TemperatureUnit): String {
+    return formatNumbers(value) + " " + temperatureUnit.symbol
+}
 fun formatIrradiance(value: Double): String {
-    val formatted = formatNumbers(value) ?: return "Invalid Input"
+    val formatted = formatNumbers(value)
     return "$formatted W/m²"
 }
 
 fun formatRadiance(value: Double): String {
-    val formatted = formatNumbers(value) ?: return "Invalid Input"
+    val formatted = formatNumbers(value)
     return "$formatted W/sr/m²"
+}
+
+fun parseTwoColumnCsv(text: String): FileData {
+
+    val x = mutableListOf<Double>()
+    val y = mutableListOf<Double>()
+
+    text.lineSequence()
+        .map(String::trim)
+        .filter { it.isNotEmpty() }
+        .filterNot { it.startsWith("#") }
+        .forEach { line ->
+
+            val delimiter =
+                if (';' in line) ';' else ','
+
+            val cols = line.split(delimiter)
+
+            require(cols.size == 2) {
+                "Line does not contain two columns: '$line'"
+            }
+
+            val a = cols[0].trim().toDoubleOrNull()
+            val b = cols[1].trim().toDoubleOrNull()
+
+            if (a != null && b != null) {
+                x += a
+                y += b
+            }
+        }
+
+    return FileData(
+        x.toDoubleArray(),
+        y.toDoubleArray()
+    )
 }

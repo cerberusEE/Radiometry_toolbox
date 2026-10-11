@@ -211,27 +211,6 @@ fun RadianceVisualization(
     }
 }
 
-fun calculateSpectralRadianceForUnit(
-    xInUserUnit: Double,
-    wavelengthUnit: WavelengthUnit,
-    tempKelvin: Double,
-): Double {
-    if (xInUserUnit <= 0.0 || tempKelvin <= 0.0) return 0.0
-    return when (wavelengthUnit) {
-        WavelengthUnit.NANOMETERS -> {
-            val lambdaMeters = xInUserUnit * 1e-9
-            spectralRadiance(lambdaMeters, tempKelvin) * 1e-9
-        }
-        WavelengthUnit.MICROMETERS -> {
-            val lambdaMeters = xInUserUnit * 1e-6
-            spectralRadiance(lambdaMeters, tempKelvin) * 1e-6
-        }
-        WavelengthUnit.INVERSE_CENTIMETERS -> {
-            val lambdaMeters = 1.0 / (100.0 * xInUserUnit)
-            spectralRadiance(lambdaMeters, tempKelvin) * (100.0 * lambdaMeters * lambdaMeters)
-        }
-    }
-}
 
 private fun formatTickValue(value: Double): String {
     if (value == 0.0) return "0"
@@ -306,17 +285,8 @@ fun PlanckCurvePlot(
         val yMax = points.maxOfOrNull { it.second }?.takeIf { it > 0.0 } ?: 1.0
         val yMin = 0.0
 
-        val xLabel = when (wavelengthUnit) {
-            WavelengthUnit.NANOMETERS -> "Wavelength (nm)"
-            WavelengthUnit.MICROMETERS -> "Wavelength (µm)"
-            WavelengthUnit.INVERSE_CENTIMETERS -> "Wavenumber (cm⁻¹)"
-        }
-
-        val yLabel = when (wavelengthUnit) {
-            WavelengthUnit.NANOMETERS -> "Spectral Radiance (W/(sr·m²·nm))"
-            WavelengthUnit.MICROMETERS -> "Spectral Radiance (W/(sr·m²·µm))"
-            WavelengthUnit.INVERSE_CENTIMETERS -> "Spectral Radiance (W/(sr·m²·cm⁻¹))"
-        }
+        val xLabel = "[" + wavelengthUnit.symbol + "]"
+        val yLabel = "Spectral Radiance (W/(sr·m²·" + wavelengthUnit.symbol + "))"
 
         val textMeasurer = rememberTextMeasurer()
 
