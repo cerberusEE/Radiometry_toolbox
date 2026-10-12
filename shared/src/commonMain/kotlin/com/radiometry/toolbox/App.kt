@@ -2,6 +2,7 @@ package com.radiometry.toolbox
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,9 +18,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.contentColorFor
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,9 +56,29 @@ data class Tool(
 )
 
 @Composable
+fun RadiometryToolboxTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit,
+) {
+    val colorScheme = if (darkTheme) {
+        darkColorScheme()
+    } else {
+        lightColorScheme()
+    }
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        content = content,
+    )
+}
+
+@Composable
 fun App() {
-    MaterialTheme {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+    RadiometryToolboxTheme {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background,
+        ) {
             ToolboxApp()
         }
     }
@@ -64,7 +88,7 @@ fun App() {
 fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
     var currentToolIndex by remember {
         mutableIntStateOf(
-            settingsManager.getInt("key_current_tool_index", 0).coerceIn(0, tools.size - 1)
+            settingsManager.getInt("key_current_tool_index", 0).coerceIn(0, tools.size - 1),
         )
     }
     var expandedSettingIndex by remember { mutableIntStateOf(-1) }
@@ -74,7 +98,7 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
         val initial = saved.ifEmpty {
             settingsManager.getString(
                 "key_temp_input",
-                settingsManager.getString("key_radiance_temperature", "5800")
+                settingsManager.getString("key_radiance_temperature", "5800"),
             )
         }
         mutableStateOf(initial)
@@ -88,8 +112,8 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                     "key_temp_input_unit",
                     settingsManager.getString(
                         "key_radiance_temperature_unit",
-                        TemperatureUnit.KELVIN.name
-                    )
+                        TemperatureUnit.KELVIN.name,
+                    ),
                 )
             }
         val unit =
@@ -123,100 +147,106 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
         scrollState.scrollTo(0)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .pointerInput(currentToolIndex, expandedSettingIndex) {
-                detectDragGestures(
-                    onDragEnd = {
-                        dragAccumulatorX = 0f
-                        dragAccumulatorY = 0f
-                    },
-                    onDragCancel = {
-                        dragAccumulatorX = 0f
-                        dragAccumulatorY = 0f
-                    },
-                ) { change, dragAmount ->
-                    dragAccumulatorX += dragAmount.x
-                    dragAccumulatorY += dragAmount.y
-
-                    // Horizontal swipe detection for tool navigation
-                    if ((abs(dragAccumulatorX) > 80f) && (abs(dragAccumulatorX) > abs(
-                            dragAccumulatorY
-                        ))
-                    ) {
-                        change.consume()
-                        if ((dragAccumulatorX < 0f) && (currentToolIndex < (tools.size - 1))) {
-                            // Swipe LEFT -> next tool
-                            currentToolIndex++
-                            settingsManager.putInt("key_current_tool_index", currentToolIndex)
-                            expandedSettingIndex = -1
-                        } else if ((dragAccumulatorX > 0f) && (currentToolIndex > 0)) {
-                            // Swipe RIGHT -> previous tool
-                            currentToolIndex--
-                            settingsManager.putInt("key_current_tool_index", currentToolIndex)
-                            expandedSettingIndex = -1
-                        }
-                        dragAccumulatorX = 0f
-                        dragAccumulatorY = 0f
-                    }
-                    // Vertical drag detection
-                    else if ((abs(dragAccumulatorY) > 80f) && (abs(dragAccumulatorY) > abs(
-                            dragAccumulatorX
-                        ))
-                    ) {
-                        dragAccumulatorX = 0f
-                        dragAccumulatorY = 0f
-                    }
-                }
-            },
-    ) {
-        // Tool selector header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = currentTool.name,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "${currentToolIndex + 1}/${tools.size}",
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-
-        // Scrollable content area for visualization panel
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { innerPadding ->
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(scrollState)
-                .padding(16.dp),
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(MaterialTheme.colorScheme.background)
+                .pointerInput(currentToolIndex, expandedSettingIndex) {
+                    detectDragGestures(
+                        onDragEnd = {
+                            dragAccumulatorX = 0f
+                            dragAccumulatorY = 0f
+                        },
+                        onDragCancel = {
+                            dragAccumulatorX = 0f
+                            dragAccumulatorY = 0f
+                        },
+                    ) { change, dragAmount ->
+                        dragAccumulatorX += dragAmount.x
+                        dragAccumulatorY += dragAmount.y
+
+                        // Horizontal swipe detection for tool navigation
+                        if ((abs(dragAccumulatorX) > 80f) && (abs(dragAccumulatorX) > abs(
+                                dragAccumulatorY,
+                            ))
+                        ) {
+                            change.consume()
+                            if ((dragAccumulatorX < 0f) && (currentToolIndex < (tools.size - 1))) {
+                                // Swipe LEFT -> next tool
+                                currentToolIndex++
+                                settingsManager.putInt("key_current_tool_index", currentToolIndex)
+                                expandedSettingIndex = -1
+                            } else if ((dragAccumulatorX > 0f) && (currentToolIndex > 0)) {
+                                // Swipe RIGHT -> previous tool
+                                currentToolIndex--
+                                settingsManager.putInt("key_current_tool_index", currentToolIndex)
+                                expandedSettingIndex = -1
+                            }
+                            dragAccumulatorX = 0f
+                            dragAccumulatorY = 0f
+                        }
+                        // Vertical drag detection
+                        else if ((abs(dragAccumulatorY) > 80f) && (abs(dragAccumulatorY) > abs(
+                                dragAccumulatorX,
+                            ))
+                        ) {
+                            dragAccumulatorX = 0f
+                            dragAccumulatorY = 0f
+                        }
+                    }
+                },
         ) {
-            VisualizationPanel(
-                tool = currentTool,
-                settingsManager = settingsManager,
-                temperatureText = sharedTemperatureText,
-                onTemperatureTextChange = onTemperatureTextChange,
-                temperatureUnit = sharedTemperatureUnit,
-                onTemperatureUnitChange = onTemperatureUnitChange,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            // Tool selector header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer)
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = currentTool.name,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "${currentToolIndex + 1}/${tools.size}",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+
+            // Scrollable content area for visualization panel
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(scrollState)
+                    .padding(16.dp),
+            ) {
+                VisualizationPanel(
+                    tool = currentTool,
+                    settingsManager = settingsManager,
+                    temperatureText = sharedTemperatureText,
+                    onTemperatureTextChange = onTemperatureTextChange,
+                    temperatureUnit = sharedTemperatureUnit,
+                    onTemperatureUnitChange = onTemperatureUnitChange,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }

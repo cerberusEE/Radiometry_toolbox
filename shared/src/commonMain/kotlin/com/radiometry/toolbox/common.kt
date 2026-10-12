@@ -140,14 +140,26 @@ fun calculateIrradiance(
     divergenceSr: Double,
     distance: Double,
     useAtmosphericCompensation: Boolean,
-    extinctionCoefficient: Double
+    transmissionAt1000m: Double,
 ): Double {
     if (divergenceSr <= 0.0 || distance < 0.0) return 0.0
     val area = divergenceSr * distance * distance
-    val irradiance = opticalPower / area
-    if (!useAtmosphericCompensation) return irradiance
-    val atmosphericLoss = kotlin.math.exp(-extinctionCoefficient * distance)
-    return irradiance * atmosphericLoss
+    if (area <= 0.0) return 0.0
+    val unattenuatedIrradiance = opticalPower / area
+    if (!useAtmosphericCompensation) return unattenuatedIrradiance
+
+    val tRef = when {
+        transmissionAt1000m <= 0.0 -> 0.0
+        transmissionAt1000m > 1.0 && transmissionAt1000m <= 100.0 -> transmissionAt1000m / 100.0
+        transmissionAt1000m > 100.0 -> 1.0
+        else -> transmissionAt1000m
+    }
+
+    if (tRef <= 0.0) return 0.0
+    if (tRef >= 1.0) return unattenuatedIrradiance
+
+    val transmission = tRef.pow(distance / 1000.0)
+    return unattenuatedIrradiance * transmission
 }
 
 fun formatNumbers(value: Double): String {
@@ -155,7 +167,7 @@ fun formatNumbers(value: Double): String {
     if (value.isInfinite()) return "Inf"
     if (abs(value) < 1e-30) return "0"
     val absVal = abs(value)
-    return if (absVal !in 1e-3..<1e5) {
+    return if (absVal !in 1e-1..<1e5) {
         val exp = kotlin.math.floor(kotlin.math.log10(absVal)).toInt()
         val mantissa = value / 10.0.pow(exp.toDouble())
         val roundedMantissa = round(mantissa * 100.0) / 100.0

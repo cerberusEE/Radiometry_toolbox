@@ -25,14 +25,12 @@ kotlin {
                 implementation(compose.runtime)
                 implementation(compose.ui)
                 implementation(compose.components.resources)
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
             }
         }
         androidMain {
             dependencies {
-                implementation("androidx.compose.ui:ui:1.7.8")
-                implementation("androidx.compose.material3:material3:1.3.1")
-                implementation("androidx.compose.foundation:foundation:1.7.8")
+
             }
         }
         iosMain {
@@ -52,7 +50,7 @@ kotlin {
 
 android {
     namespace = "com.radiometry.toolbox.shared"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         minSdk = 24
     }

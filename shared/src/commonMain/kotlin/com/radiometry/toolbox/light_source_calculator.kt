@@ -43,17 +43,28 @@ fun LightSourceVisualization(settingsManager: SettingsManager) {
     var useAtmosphericCompensation by remember {
         mutableStateOf(settingsManager.getBoolean("key_light_use_atm_comp", false))
     }
-    var extinctionText by remember {
-        mutableStateOf(settingsManager.getString("key_light_extinction", "0.01"))
+    var transmissionText by remember {
+        mutableStateOf(
+            settingsManager.getString(
+                "key_light_transmission",
+                settingsManager.getString("key_light_extinction", "0.9"),
+            ),
+        )
     }
 
     val opticalPower = opticalPowerText.toDoubleOrNull()
     val divergenceSr = divergenceText.toDoubleOrNull()
     val distance = distanceText.toDoubleOrNull()
-    val extinctionCoefficient = extinctionText.toDoubleOrNull() ?: 0.0
+    val transmissionAt1000m = transmissionText.toDoubleOrNull() ?: 0.9
 
     val irradianceResult = if (opticalPower != null && divergenceSr != null && distance != null) {
-        calculateIrradiance(opticalPower, divergenceSr, distance, useAtmosphericCompensation, extinctionCoefficient)
+        calculateIrradiance(
+            opticalPower = opticalPower,
+            divergenceSr = divergenceSr,
+            distance = distance,
+            useAtmosphericCompensation = useAtmosphericCompensation,
+            transmissionAt1000m = transmissionAt1000m,
+        )
     } else {
         null
     }
@@ -171,12 +182,12 @@ fun LightSourceVisualization(settingsManager: SettingsManager) {
 
         if (useAtmosphericCompensation) {
             OutlinedTextField(
-                value = extinctionText,
+                value = transmissionText,
                 onValueChange = {
-                    extinctionText = it
-                    settingsManager.putString("key_light_extinction", it)
+                    transmissionText = it
+                    settingsManager.putString("key_light_transmission", it)
                 },
-                label = { Text("Extinction Coefficient (1/m)", color = Color.White.copy(alpha = 0.8f)) },
+                label = { Text("Transmission at 1000 m (0 to 1)", color = Color.White.copy(alpha = 0.8f)) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 colors = textFieldColors,
