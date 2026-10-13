@@ -135,6 +135,75 @@ fun calculateRadiance(
     return (hStep / 3.0) * sum
 }
 
+data class RadianceComparisonResult(
+    val radiance1: Double,
+    val radiance2: Double,
+    val contrast: Double,
+    val emitted1: Double = radiance1,
+    val reflected1: Double = 0.0,
+    val emitted2: Double = radiance2,
+    val reflected2: Double = 0.0,
+)
+
+fun calculateRadianceContrast(
+    startWavelengthMeters: Double,
+    stopWavelengthMeters: Double,
+    temp1Kelvin: Double,
+    emissivity1: Double,
+    temp2Kelvin: Double,
+    emissivity2: Double,
+    tempBgKelvin: Double = 300.0,
+): Double? {
+    return calculateRadianceComparison(
+        startWavelengthMeters = startWavelengthMeters,
+        stopWavelengthMeters = stopWavelengthMeters,
+        temp1Kelvin = temp1Kelvin,
+        emissivity1 = emissivity1,
+        temp2Kelvin = temp2Kelvin,
+        emissivity2 = emissivity2,
+        tempBgKelvin = tempBgKelvin,
+    )?.contrast
+}
+
+fun calculateRadianceComparison(
+    startWavelengthMeters: Double,
+    stopWavelengthMeters: Double,
+    temp1Kelvin: Double,
+    emissivity1: Double,
+    temp2Kelvin: Double,
+    emissivity2: Double,
+    tempBgKelvin: Double = 300.0,
+): RadianceComparisonResult? {
+    if (temp1Kelvin <= 0.0 || temp2Kelvin <= 0.0 || tempBgKelvin <= 0.0) return null
+    if (emissivity1 < 0.0 || emissivity2 < 0.0) return null
+    if (startWavelengthMeters <= 0.0 || stopWavelengthMeters <= 0.0) return null
+    if (startWavelengthMeters == stopWavelengthMeters) return null
+
+    val bbRadiance1 = calculateRadiance(startWavelengthMeters, stopWavelengthMeters, temp1Kelvin)
+    val bbRadiance2 = calculateRadiance(startWavelengthMeters, stopWavelengthMeters, temp2Kelvin)
+    val bbRadianceBg = calculateRadiance(startWavelengthMeters, stopWavelengthMeters, tempBgKelvin)
+
+    val emitted1 = emissivity1 * bbRadiance1
+    val reflected1 = (1.0 - emissivity1).coerceAtLeast(0.0) * bbRadianceBg
+    val rad1 = emitted1 + reflected1
+
+    val emitted2 = emissivity2 * bbRadiance2
+    val reflected2 = (1.0 - emissivity2).coerceAtLeast(0.0) * bbRadianceBg
+    val rad2 = emitted2 + reflected2
+
+    val contrast = abs(rad1 - rad2)
+
+    return RadianceComparisonResult(
+        radiance1 = rad1,
+        radiance2 = rad2,
+        contrast = contrast,
+        emitted1 = emitted1,
+        reflected1 = reflected1,
+        emitted2 = emitted2,
+        reflected2 = reflected2,
+    )
+}
+
 fun calculateIrradiance(
     opticalPower: Double,
     divergenceSr: Double,
