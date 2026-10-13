@@ -191,7 +191,7 @@ fun calculateRadianceComparison(
     val reflected2 = (1.0 - emissivity2).coerceAtLeast(0.0) * bbRadianceBg
     val rad2 = emitted2 + reflected2
 
-    val contrast = abs(rad1 - rad2)
+    val contrast = rad1 - rad2
 
     return RadianceComparisonResult(
         radiance1 = rad1,

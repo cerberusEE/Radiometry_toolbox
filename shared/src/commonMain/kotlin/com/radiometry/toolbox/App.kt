@@ -42,6 +42,65 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 
+
+// TODO more tools:
+/*
+----  ifov GSD calculator. -----
+Inputs:
+
+Pixel pitch
+Focal length
+Altitude/range
+
+Outputs:
+
+IFOV
+Ground sample distance
+Scene coverage
+
+----  Dynamic Range Calculator -----
+Inputs:
+
+Full well capacity
+Read noise
+ADC bits
+
+Outputs:
+
+Dynamic range (dB)
+Effective dynamic range
+ENOB estimate
+
+----- Solar Illumination Calculator -----
+
+Inputs:
+Latitude
+Date
+Time
+
+Outputs:
+
+Solar elevation
+Air mass
+Approximate irradiance
+
+Useful for visible/NIR systems.
+
+----- Depth of Focus Calculator -----
+
+Outputs:
+Geometric DoF
+Diffraction-limited DoF
+
+----- Integration Time Finder -----
+
+Outputs:
+Required exposure
+
+
+* might need to change tool layout if there is too many tools.
+ */
+
 // Define the available tools in the toolbox
 val tools = listOf(
     Tool("Radiance Calculator", "Calculate radiance values", Color(0xFF6200EE)),
