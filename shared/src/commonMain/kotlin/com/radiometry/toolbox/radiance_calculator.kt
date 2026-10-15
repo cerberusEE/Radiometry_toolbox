@@ -121,6 +121,15 @@ fun RadianceVisualization(
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                val peakLabel = if (wavelengthUnit == WavelengthUnit.INVERSE_CENTIMETERS) "Peak Wavenumber" else "Peak Wavelength"
+                val peakStr = formatPeakWavelength(tempKelvin, wavelengthUnit)
+                Text(
+                    text = "$peakLabel: $peakStr",
+                    fontSize = 14.sp,
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontWeight = FontWeight.Medium,
+                )
             }
         }
 

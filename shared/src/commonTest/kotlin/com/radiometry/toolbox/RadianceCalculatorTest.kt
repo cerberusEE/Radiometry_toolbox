@@ -114,4 +114,43 @@ class RadianceCalculatorTest {
         assertEquals("2.58e7 W/sr/m²", formatRadiance(25800000.0))
         assertEquals("1.23e-4 W/sr/m²", formatRadiance(0.000123))
     }
+
+    @Test
+    fun testCalculatePeakWavelength() {
+        // Sun @ 5800 K -> ~499.6 nm -> ~0.5 µm
+        val sunNm = calculatePeakWavelength(5800.0, WavelengthUnit.NANOMETERS)
+        assertNotNull(sunNm)
+        assertEquals(499.615, sunNm, 0.1)
+
+        val sunUm = calculatePeakWavelength(5800.0, WavelengthUnit.MICROMETERS)
+        assertNotNull(sunUm)
+        assertEquals(0.4996, sunUm, 0.01)
+
+        val sunCm = calculatePeakWavelength(5800.0, WavelengthUnit.INVERSE_CENTIMETERS)
+        assertNotNull(sunCm)
+        assertEquals(20015.38, sunCm, 1.0)
+
+        // Room Temp @ 300 K -> ~9.66 µm -> ~9659 nm
+        val roomUm = calculatePeakWavelength(300.0, WavelengthUnit.MICROMETERS)
+        assertNotNull(roomUm)
+        assertEquals(9.66, roomUm, 0.01)
+
+        // Invalid temperatures
+        assertNull(calculatePeakWavelength(0.0, WavelengthUnit.NANOMETERS))
+        assertNull(calculatePeakWavelength(-100.0, WavelengthUnit.MICROMETERS))
+        assertNull(calculatePeakWavelength(Double.NaN, WavelengthUnit.INVERSE_CENTIMETERS))
+    }
+
+    @Test
+    fun testFormatPeakWavelength() {
+        assertEquals("499.62 nm", formatPeakWavelength(5800.0, WavelengthUnit.NANOMETERS))
+        assertEquals("0.50 µm", formatPeakWavelength(5800.0, WavelengthUnit.MICROMETERS))
+        assertEquals("20015.38 cm⁻¹", formatPeakWavelength(5800.0, WavelengthUnit.INVERSE_CENTIMETERS))
+
+        assertEquals("9.66 µm", formatPeakWavelength(300.0, WavelengthUnit.MICROMETERS))
+
+        assertEquals("Invalid Input", formatPeakWavelength(null, WavelengthUnit.NANOMETERS))
+        assertEquals("Invalid Input", formatPeakWavelength(-50.0, WavelengthUnit.MICROMETERS))
+        assertEquals("Invalid Input", formatPeakWavelength(Double.NaN, WavelengthUnit.INVERSE_CENTIMETERS))
+    }
 }

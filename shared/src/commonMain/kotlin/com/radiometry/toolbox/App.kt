@@ -107,6 +107,7 @@ val tools = listOf(
     Tool("Temperature Converter", "Convert between temperature units", Color(0xFF018786)),
     Tool("Light source calculator", "Calculate irradiance from a light source", Color(0xFFFF6D00)),
     Tool("Temperature Comparison", "Compare radiance contrast between two temperatures", Color(0xFFC2185B)),
+    Tool("Pixel Footprint & GSD", "Calculate IFOV and Ground Sampling Distance", Color(0xFF00897B)),
 )
 
 data class Tool(
@@ -356,6 +357,8 @@ fun VisualizationPanel(
                 temperatureUnit = temperatureUnit,
                 onTemperatureUnitChange = onTemperatureUnitChange,
             )
+
+            "Pixel Footprint & GSD" -> IfovGsdVisualization(settingsManager)
         }
     }
 }

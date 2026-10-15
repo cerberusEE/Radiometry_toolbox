@@ -13,8 +13,8 @@ class TemperatureComparisonTest {
         // LWIR range: 8 µm to 12 µm (8e-6 m to 12e-6 m)
         val startMeters = 8.0e-6
         val stopMeters = 12.0e-6
-        val temp1K = 300.0
-        val temp2K = 310.0
+        val temp1K = 310.0
+        val temp2K = 300.0
         val tempBgK = 290.0
 
         val result = calculateRadianceComparison(

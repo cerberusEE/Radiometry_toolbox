@@ -265,6 +265,20 @@ fun formatIrradiance(value: Double): String {
     return "$formatted W/m²"
 }
 
+const val WIEN_DISPLACEMENT_CONSTANT_M = 2.897771955e-3
+
+fun calculatePeakWavelength(temperatureKelvin: Double, unit: WavelengthUnit): Double? {
+    if (temperatureKelvin <= 0.0 || temperatureKelvin.isNaN() || temperatureKelvin.isInfinite()) return null
+    val peakMeters = WIEN_DISPLACEMENT_CONSTANT_M / temperatureKelvin
+    return convertWavelength(peakMeters * 1e6, WavelengthUnit.MICROMETERS, unit)
+}
+
+fun formatPeakWavelength(temperatureKelvin: Double?, unit: WavelengthUnit): String {
+    if (temperatureKelvin == null || temperatureKelvin <= 0.0 || temperatureKelvin.isNaN()) return "Invalid Input"
+    val peakVal = calculatePeakWavelength(temperatureKelvin, unit) ?: return "Invalid Input"
+    return "${formatNumbers(peakVal)} ${unit.symbol}"
+}
+
 fun formatRadiance(value: Double): String {
     if (value.isNaN() || value < 0.0) return "Invalid Input"
     val formatted = formatNumbers(value)
@@ -304,4 +318,93 @@ fun parseTwoColumnCsv(text: String): FileData {
         x.toDoubleArray(),
         y.toDoubleArray()
     )
+}
+
+enum class IfovUnit(val symbol: String, val label: String) {
+    MILLIRADIANS("mrad", "Milliradians"),
+    MICRORADIANS("µrad", "Microradians"),
+    RADIANS("rad", "Radians"),
+    DEGREES("°", "Degrees"),
+}
+
+fun convertIfovToRadians(value: Double, unit: IfovUnit): Double? {
+    if (value <= 0.0 || value.isNaN() || value.isInfinite()) return null
+    return when (unit) {
+        IfovUnit.MILLIRADIANS -> value * 1e-3
+        IfovUnit.MICRORADIANS -> value * 1e-6
+        IfovUnit.RADIANS -> value
+        IfovUnit.DEGREES -> value * (kotlin.math.PI / 180.0)
+    }
+}
+
+fun convertIfovFromRadians(radians: Double, unit: IfovUnit): Double? {
+    if (radians <= 0.0 || radians.isNaN() || radians.isInfinite()) return null
+    return when (unit) {
+        IfovUnit.MILLIRADIANS -> radians * 1e3
+        IfovUnit.MICRORADIANS -> radians * 1e6
+        IfovUnit.RADIANS -> radians
+        IfovUnit.DEGREES -> radians * (180.0 / kotlin.math.PI)
+    }
+}
+
+fun calculateIfovInRadians(focalLengthMm: Double, pixelPitchUm: Double): Double? {
+    if (focalLengthMm <= 0.0 || pixelPitchUm <= 0.0 || focalLengthMm.isNaN() || pixelPitchUm.isNaN() || focalLengthMm.isInfinite() || pixelPitchUm.isInfinite()) return null
+    val focalLengthMeters = focalLengthMm * 1e-3
+    val pixelPitchMeters = pixelPitchUm * 1e-6
+    return pixelPitchMeters / focalLengthMeters
+}
+
+fun calculatePixelPitchUm(ifovRadians: Double, focalLengthMm: Double): Double? {
+    if (ifovRadians <= 0.0 || focalLengthMm <= 0.0 || ifovRadians.isNaN() || focalLengthMm.isNaN() || ifovRadians.isInfinite() || focalLengthMm.isInfinite()) return null
+    val focalLengthMeters = focalLengthMm * 1e-3
+    val pixelPitchMeters = ifovRadians * focalLengthMeters
+    return pixelPitchMeters * 1e6
+}
+
+fun calculateGsdInMeters(ifovRadians: Double, distanceMeters: Double): Double? {
+    if (ifovRadians <= 0.0 || distanceMeters < 0.0 || ifovRadians.isNaN() || distanceMeters.isNaN() || ifovRadians.isInfinite() || distanceMeters.isInfinite()) return null
+    return ifovRadians * distanceMeters
+}
+
+fun calculatePixelFootprintArea(gsdMeters: Double): Double? {
+    if (gsdMeters < 0.0 || gsdMeters.isNaN() || gsdMeters.isInfinite()) return null
+    return gsdMeters * gsdMeters
+}
+
+fun formatIfov(ifovRadians: Double, unit: IfovUnit): String {
+    val converted = convertIfovFromRadians(ifovRadians, unit) ?: return "Invalid Input"
+    return "${formatNumbers(converted)} ${unit.symbol}"
+}
+
+fun formatGsd(gsdMeters: Double): String {
+    if (gsdMeters.isNaN() || gsdMeters < 0.0) return "Invalid Input"
+    if (gsdMeters == 0.0) return "0 m"
+    val formattedMeters = formatNumbers(gsdMeters)
+    return when {
+        gsdMeters >= 1.0 -> "$formattedMeters m"
+        gsdMeters >= 0.01 -> {
+            val cm = gsdMeters * 100.0
+            "${formatNumbers(cm)} cm ($formattedMeters m)"
+        }
+        else -> {
+            val mm = gsdMeters * 1000.0
+            "${formatNumbers(mm)} mm ($formattedMeters m)"
+        }
+    }
+}
+
+fun formatFootprintArea(areaSqMeters: Double): String {
+    if (areaSqMeters.isNaN() || areaSqMeters < 0.0) return "Invalid Input"
+    val formattedSqM = formatNumbers(areaSqMeters)
+    return when {
+        areaSqMeters >= 1.0 -> "$formattedSqM m²"
+        areaSqMeters >= 0.0001 -> {
+            val sqCm = areaSqMeters * 10000.0
+            "${formatNumbers(sqCm)} cm² ($formattedSqM m²)"
+        }
+        else -> {
+            val sqMm = areaSqMeters * 1000000.0
+            "${formatNumbers(sqMm)} mm² ($formattedSqM m²)"
+        }
+    }
 }
