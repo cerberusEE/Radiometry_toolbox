@@ -46,8 +46,9 @@ fun formatPeakWavelength(temperatureKelvin: Double?, unit: WavelengthUnit): Stri
     return "${formatNumbers(peakVal)} ${unit.symbol}"
 }
 
+// Must allow negative values for radiance since the radiance contrast can be negative.
 fun formatRadiance(value: Double): String {
-    if (value.isNaN() || value < 0.0) return "Invalid Input"
+    if (value.isNaN()) return "Invalid Input"
     val formatted = formatNumbers(value)
     return "$formatted W/sr/m²"
 }

@@ -81,6 +81,8 @@ val tools = listOf(
     Tool("Light source calculator", "Calculate irradiance from a light source", Color(0xFF76607B)),
     Tool("Temperature Comparison", "Compare radiance contrast between two temperatures", Color(0xFF64708A)),
     Tool("Pixel Footprint & GSD", "Calculate IFOV and Ground Sampling Distance", Color(0xFF727058)),
+    Tool("Solar Angle Calculator", "Calculate solar position and compass orientation", Color(0xFF8C6D58)),
+    Tool("Ambient Light Sensor", "Measure ambient illuminance using the light sensor", Color(0xFF6D7858)),
 )
 
 data class Tool(
@@ -332,6 +334,10 @@ fun VisualizationPanel(
             )
 
             "Pixel Footprint & GSD" -> IfovGsdVisualization(settingsManager)
+
+            "Solar Angle Calculator" -> SolarAngleVisualization(settingsManager)
+
+            "Ambient Light Sensor" -> AmbientLightVisualization(settingsManager)
         }
     }
 }

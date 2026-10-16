@@ -107,7 +107,7 @@ class RadianceCalculatorTest {
     @Test
     fun testFormatRadiance() {
         assertEquals("Invalid Input", formatRadiance(Double.NaN))
-        assertEquals("Invalid Input", formatRadiance(-10.0))
+        assertEquals("-10 W/sr/m²", formatRadiance(-10.0))
         assertEquals("0 W/sr/m²", formatRadiance(0.0))
 
         assertEquals("29.80 W/sr/m²", formatRadiance(29.8021))
