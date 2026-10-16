@@ -43,21 +43,12 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 
 
-// TODO more tools:
 /*
-----  ifov GSD calculator. -----
-Inputs:
-
-Pixel pitch
-Focal length
-Altitude/range
-
-Outputs:
-
-IFOV
-Ground sample distance
-Scene coverage
-
+TODO more tools!
+TODO: Solar angle calculator tool. Use SPA function to calculate solar angle at any position and time. Use location services to get be able to calculate solar angle at current time and position.
+TODO: Utilize solar calculator tool to make a spectral solar irradiance tool with band selection.
+TODO: Dynamic range calculator tool. Input is full well capacity in electrons (e-), read noise in ADC counts, ADC-bits. Assume a black level of 0 and full well saturation at 2^ADC-bits. Output is dynamic range in dB. Also calculate maximum SNR in dB assuming photon noise limited system.
+TODO: Figure out a new layout of the tools. Or more likely a zoom out function where typical zoom out is used to show a new screen with just all the tools and clicking on one will show the tool.
 ----  Dynamic Range Calculator -----
 Inputs:
 
@@ -71,21 +62,6 @@ Dynamic range (dB)
 Effective dynamic range
 ENOB estimate
 
------ Solar Illumination Calculator -----
-
-Inputs:
-Latitude
-Date
-Time
-
-Outputs:
-
-Solar elevation
-Air mass
-Approximate irradiance
-
-Useful for visible/NIR systems.
-
 ----- Depth of Focus Calculator -----
 
 Outputs:
@@ -96,18 +72,15 @@ Diffraction-limited DoF
 
 Outputs:
 Required exposure
-
-
-* might need to change tool layout if there is too many tools.
  */
 
 // Define the available tools in the toolbox
 val tools = listOf(
-    Tool("Radiance Calculator", "Calculate radiance values", Color(0xFF6200EE)),
-    Tool("Temperature Converter", "Convert between temperature units", Color(0xFF018786)),
-    Tool("Light source calculator", "Calculate irradiance from a light source", Color(0xFFFF6D00)),
-    Tool("Temperature Comparison", "Compare radiance contrast between two temperatures", Color(0xFFC2185B)),
-    Tool("Pixel Footprint & GSD", "Calculate IFOV and Ground Sampling Distance", Color(0xFF00897B)),
+    Tool("Radiance Calculator", "Calculate radiance values", Color(0xFF5F7289)),
+    Tool("Temperature Converter", "Convert between temperature units", Color(0xFF58766A)),
+    Tool("Light source calculator", "Calculate irradiance from a light source", Color(0xFF76607B)),
+    Tool("Temperature Comparison", "Compare radiance contrast between two temperatures", Color(0xFF64708A)),
+    Tool("Pixel Footprint & GSD", "Calculate IFOV and Ground Sampling Distance", Color(0xFF727058)),
 )
 
 data class Tool(

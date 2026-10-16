@@ -1,78 +1,8 @@
 package com.radiometry.toolbox
-import kotlin.math.abs
+
+import kotlin.math.exp
 import kotlin.math.pow
-import kotlin.math.round
 
-enum class WavelengthUnit(val symbol: String, val label: String) {
-    NANOMETERS("nm", "Nanometers"),
-    MICROMETERS("µm", "Micrometers"),
-    INVERSE_CENTIMETERS("cm⁻¹", "Inverse Centimeters"),
-}
-
-enum class TemperatureUnit(val symbol: String, val label: String) {
-    CELSIUS("°C", "Celsius"),
-    KELVIN("K", "Kelvin"),
-    FAHRENHEIT("°F", "Fahrenheit"),
-}
-
-data class FileData(
-    val x: DoubleArray,
-    val y: DoubleArray
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other == null || this::class != other::class) return false
-
-        other as FileData
-
-        if (!x.contentEquals(other.x)) return false
-        if (!y.contentEquals(other.y)) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = x.contentHashCode()
-        result = 31 * result + y.contentHashCode()
-        return result
-    }
-}
-
-fun convertToWavelengthInMeters(value: Double, unit: WavelengthUnit): Double? {
-    if (value <= 0.0 || value.isNaN() || value.isInfinite()) return null
-    return when (unit) {
-        WavelengthUnit.NANOMETERS -> value * 1e-9
-        WavelengthUnit.MICROMETERS -> value * 1e-6
-        WavelengthUnit.INVERSE_CENTIMETERS -> 1.0 / (100.0 * value)
-    }
-}
-
-fun convertWavelength(value: Double, fromUnit: WavelengthUnit, toUnit: WavelengthUnit): Double? {
-    val meters = convertToWavelengthInMeters(value, fromUnit) ?: return null
-    return when (toUnit) {
-        WavelengthUnit.NANOMETERS -> meters * 1e9
-        WavelengthUnit.MICROMETERS -> meters * 1e6
-        WavelengthUnit.INVERSE_CENTIMETERS -> 1.0 / (100.0 * meters)
-    }
-}
-
-fun convertTemperatureToKelvin(value: Double, unit: TemperatureUnit): Double {
-    if (value.isNaN() || value.isInfinite()) return value
-    val kelvin = when (unit) {
-        TemperatureUnit.CELSIUS -> value + 273.15
-        TemperatureUnit.KELVIN -> value
-        TemperatureUnit.FAHRENHEIT -> ((value - 32.0) * 5.0 / 9.0) + 273.15
-    }
-    return if (kelvin >= 0.0) kelvin else Double.NaN
-}
-fun convertTemperature(value: Double, fromUnit: TemperatureUnit, toUnit: TemperatureUnit): Double {
-    val tempInKelvin = convertTemperatureToKelvin(value, fromUnit)
-    return when (toUnit) {
-        TemperatureUnit.CELSIUS -> tempInKelvin - 273.15
-        TemperatureUnit.KELVIN -> tempInKelvin
-        TemperatureUnit.FAHRENHEIT -> ((tempInKelvin - 273.15) * 9.0 / 5.0) + 32.0
-    }
-}
 fun calculateSpectralRadianceForUnit(
     xInUserUnit: Double,
     wavelengthUnit: WavelengthUnit,
@@ -103,7 +33,7 @@ fun spectralRadiance(lambdaMeters: Double, temperatureKelvin: Double): Double {
     val c2 = 0.014387773538277204
     val x = c2 / (lambdaMeters * temperatureKelvin)
     if (x > 700.0) return 0.0
-    val expTerm = kotlin.math.exp(x) - 1.0
+    val expTerm = exp(x) - 1.0
     if (expTerm <= 0.0) return 0.0
     return c1 / (lambdaMeters.pow(5.0) * expTerm)
 }
@@ -134,16 +64,6 @@ fun calculateRadiance(
 
     return (hStep / 3.0) * sum
 }
-
-data class RadianceComparisonResult(
-    val radiance1: Double,
-    val radiance2: Double,
-    val contrast: Double,
-    val emitted1: Double = radiance1,
-    val reflected1: Double = 0.0,
-    val emitted2: Double = radiance2,
-    val reflected2: Double = 0.0,
-)
 
 fun calculateRadianceContrast(
     startWavelengthMeters: Double,
@@ -231,62 +151,13 @@ fun calculateIrradiance(
     return unattenuatedIrradiance * transmission
 }
 
-fun formatNumbers(value: Double): String {
-    if (value.isNaN()) return "NaN"
-    if (value.isInfinite()) return "Inf"
-    if (abs(value) < 1e-30) return "0"
-    val absVal = abs(value)
-    return if (absVal !in 1e-1..<1e5) {
-        val exp = kotlin.math.floor(kotlin.math.log10(absVal)).toInt()
-        val mantissa = value / 10.0.pow(exp.toDouble())
-        val roundedMantissa = round(mantissa * 100.0) / 100.0
-        "${roundedMantissa}e$exp"
-    } else {
-        val rounded = round(value * 100.0) / 100.0
-        if (abs(rounded - value) < 1e-6 && abs(rounded % 1.0) < 1e-6) {
-            "${rounded.toLong()}"
-        } else {
-            val str = rounded.toString()
-            if (str.contains('.')) {
-                val parts = str.split('.')
-                val decimals = parts[1].take(2).padEnd(2, '0')
-                "${parts[0]}.$decimals"
-            } else {
-                str
-            }
-        }
-    }
-}
-fun formatTemperature(value: Double, temperatureUnit: TemperatureUnit): String {
-    return formatNumbers(value) + " " + temperatureUnit.symbol
-}
-fun formatIrradiance(value: Double): String {
-    val formatted = formatNumbers(value)
-    return "$formatted W/m²"
-}
-
-const val WIEN_DISPLACEMENT_CONSTANT_M = 2.897771955e-3
-
 fun calculatePeakWavelength(temperatureKelvin: Double, unit: WavelengthUnit): Double? {
     if (temperatureKelvin <= 0.0 || temperatureKelvin.isNaN() || temperatureKelvin.isInfinite()) return null
     val peakMeters = WIEN_DISPLACEMENT_CONSTANT_M / temperatureKelvin
     return convertWavelength(peakMeters * 1e6, WavelengthUnit.MICROMETERS, unit)
 }
 
-fun formatPeakWavelength(temperatureKelvin: Double?, unit: WavelengthUnit): String {
-    if (temperatureKelvin == null || temperatureKelvin <= 0.0 || temperatureKelvin.isNaN()) return "Invalid Input"
-    val peakVal = calculatePeakWavelength(temperatureKelvin, unit) ?: return "Invalid Input"
-    return "${formatNumbers(peakVal)} ${unit.symbol}"
-}
-
-fun formatRadiance(value: Double): String {
-    if (value.isNaN() || value < 0.0) return "Invalid Input"
-    val formatted = formatNumbers(value)
-    return "$formatted W/sr/m²"
-}
-
 fun parseTwoColumnCsv(text: String): FileData {
-
     val x = mutableListOf<Double>()
     val y = mutableListOf<Double>()
 
@@ -320,33 +191,6 @@ fun parseTwoColumnCsv(text: String): FileData {
     )
 }
 
-enum class IfovUnit(val symbol: String, val label: String) {
-    MILLIRADIANS("mrad", "Milliradians"),
-    MICRORADIANS("µrad", "Microradians"),
-    RADIANS("rad", "Radians"),
-    DEGREES("°", "Degrees"),
-}
-
-fun convertIfovToRadians(value: Double, unit: IfovUnit): Double? {
-    if (value <= 0.0 || value.isNaN() || value.isInfinite()) return null
-    return when (unit) {
-        IfovUnit.MILLIRADIANS -> value * 1e-3
-        IfovUnit.MICRORADIANS -> value * 1e-6
-        IfovUnit.RADIANS -> value
-        IfovUnit.DEGREES -> value * (kotlin.math.PI / 180.0)
-    }
-}
-
-fun convertIfovFromRadians(radians: Double, unit: IfovUnit): Double? {
-    if (radians <= 0.0 || radians.isNaN() || radians.isInfinite()) return null
-    return when (unit) {
-        IfovUnit.MILLIRADIANS -> radians * 1e3
-        IfovUnit.MICRORADIANS -> radians * 1e6
-        IfovUnit.RADIANS -> radians
-        IfovUnit.DEGREES -> radians * (180.0 / kotlin.math.PI)
-    }
-}
-
 fun calculateIfovInRadians(focalLengthMm: Double, pixelPitchUm: Double): Double? {
     if (focalLengthMm <= 0.0 || pixelPitchUm <= 0.0 || focalLengthMm.isNaN() || pixelPitchUm.isNaN() || focalLengthMm.isInfinite() || pixelPitchUm.isInfinite()) return null
     val focalLengthMeters = focalLengthMm * 1e-3
@@ -369,42 +213,4 @@ fun calculateGsdInMeters(ifovRadians: Double, distanceMeters: Double): Double? {
 fun calculatePixelFootprintArea(gsdMeters: Double): Double? {
     if (gsdMeters < 0.0 || gsdMeters.isNaN() || gsdMeters.isInfinite()) return null
     return gsdMeters * gsdMeters
-}
-
-fun formatIfov(ifovRadians: Double, unit: IfovUnit): String {
-    val converted = convertIfovFromRadians(ifovRadians, unit) ?: return "Invalid Input"
-    return "${formatNumbers(converted)} ${unit.symbol}"
-}
-
-fun formatGsd(gsdMeters: Double): String {
-    if (gsdMeters.isNaN() || gsdMeters < 0.0) return "Invalid Input"
-    if (gsdMeters == 0.0) return "0 m"
-    val formattedMeters = formatNumbers(gsdMeters)
-    return when {
-        gsdMeters >= 1.0 -> "$formattedMeters m"
-        gsdMeters >= 0.01 -> {
-            val cm = gsdMeters * 100.0
-            "${formatNumbers(cm)} cm ($formattedMeters m)"
-        }
-        else -> {
-            val mm = gsdMeters * 1000.0
-            "${formatNumbers(mm)} mm ($formattedMeters m)"
-        }
-    }
-}
-
-fun formatFootprintArea(areaSqMeters: Double): String {
-    if (areaSqMeters.isNaN() || areaSqMeters < 0.0) return "Invalid Input"
-    val formattedSqM = formatNumbers(areaSqMeters)
-    return when {
-        areaSqMeters >= 1.0 -> "$formattedSqM m²"
-        areaSqMeters >= 0.0001 -> {
-            val sqCm = areaSqMeters * 10000.0
-            "${formatNumbers(sqCm)} cm² ($formattedSqM m²)"
-        }
-        else -> {
-            val sqMm = areaSqMeters * 1000000.0
-            "${formatNumbers(sqMm)} mm² ($formattedSqM m²)"
-        }
-    }
 }
