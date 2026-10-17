@@ -1,7 +1,6 @@
 package com.radiometry.toolbox
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,17 +25,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -273,21 +264,6 @@ fun IfovGsdVisualization(settingsManager: SettingsManager) {
             }
         }
 
-        // Ray Diagram Canvas
-        OpticsGeometryDiagram(
-            focalLengthMm = focalLengthMm,
-            pixelPitchUm = pixelPitchUm,
-            ifovRad = effectiveIfovRad,
-            distanceMeters = distanceMeters,
-            gsdMeters = gsdMeters,
-            ifovUnit = ifovUnit,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                .padding(8.dp),
-        )
-
         // Inputs
         OutlinedTextField(
             value = focalLengthText,
@@ -364,165 +340,6 @@ fun IfovGsdVisualization(settingsManager: SettingsManager) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             colors = textFieldColors,
             modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-fun OpticsGeometryDiagram(
-    focalLengthMm: Double?,
-    pixelPitchUm: Double?,
-    ifovRad: Double?,
-    distanceMeters: Double?,
-    gsdMeters: Double?,
-    ifovUnit: IfovUnit,
-    modifier: Modifier = Modifier,
-) {
-    val textMeasurer = rememberTextMeasurer()
-
-    Canvas(modifier = modifier) {
-        val width = size.width
-        val height = size.height
-        val centerY = height / 2f
-
-        // X-coordinates for optical elements
-        val detectorX = width * 0.08f
-        val lensX = width * 0.28f
-        val targetX = width * 0.90f
-
-        // Optical axis line
-        drawLine(
-            color = Color.White.copy(alpha = 0.3f),
-            start = Offset(10f, centerY),
-            end = Offset(width - 10f, centerY),
-            strokeWidth = 1.5f,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f),
-        )
-
-        // Draw Lens (convex arc line)
-        val lensHeight = height * 0.6f
-        val lensTop = centerY - lensHeight / 2f
-        val lensBottom = centerY + lensHeight / 2f
-
-        val lensPath = Path().apply {
-            moveTo(lensX, lensTop)
-            quadraticTo(lensX + 8f, centerY, lensX, lensBottom)
-            quadraticTo(lensX - 8f, centerY, lensX, lensTop)
-        }
-        drawPath(
-            path = lensPath,
-            color = Color(0xFF64B5F6),
-            style = Stroke(width = 2.5f),
-        )
-
-        // Draw Detector Pixel at detectorX
-        val pixelDisplayHeight = height * 0.25f
-        val pixelTop = centerY - pixelDisplayHeight / 2f
-        val pixelBottom = centerY + pixelDisplayHeight / 2f
-
-        drawLine(
-            color = Color(0xFFFFD54F),
-            start = Offset(detectorX, pixelTop),
-            end = Offset(detectorX, pixelBottom),
-            strokeWidth = 4f,
-            cap = StrokeCap.Round,
-        )
-
-        // Draw Target Plane / Footprint GSD at targetX
-        val gsdDisplayHeight = height * 0.65f
-        val targetTop = centerY - gsdDisplayHeight / 2f
-        val targetBottom = centerY + gsdDisplayHeight / 2f
-
-        drawLine(
-            color = Color(0xFF81C784),
-            start = Offset(targetX, targetTop),
-            end = Offset(targetX, targetBottom),
-            strokeWidth = 4f,
-            cap = StrokeCap.Round,
-        )
-
-        // Cone / Ray lines: Pixel -> Lens center -> Target GSD
-        val topRay = Path().apply {
-            moveTo(detectorX, pixelTop)
-            lineTo(lensX, centerY)
-            lineTo(targetX, targetBottom)
-        }
-        val bottomRay = Path().apply {
-            moveTo(detectorX, pixelBottom)
-            lineTo(lensX, centerY)
-            lineTo(targetX, targetTop)
-        }
-
-        drawPath(
-            path = topRay,
-            color = Color(0xFFFFB74D).copy(alpha = 0.7f),
-            style = Stroke(width = 1.5f),
-        )
-        drawPath(
-            path = bottomRay,
-            color = Color(0xFFFFB74D).copy(alpha = 0.7f),
-            style = Stroke(width = 1.5f),
-        )
-
-        // Text Labels on Canvas
-        val smallTextStyle = TextStyle(
-            color = Color.White.copy(alpha = 0.85f),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium,
-        )
-
-        // Label for focal length f & pitch p
-        val focalText = if (focalLengthMm != null) "f=${formatNumbers(focalLengthMm)}mm" else "f"
-        val pitchText = if (pixelPitchUm != null) "p=${formatNumbers(pixelPitchUm)}µm" else ""
-        val specText = if (pitchText.isNotEmpty()) "$focalText, $pitchText" else focalText
-        drawText(
-            textMeasurer = textMeasurer,
-            text = specText,
-            style = smallTextStyle,
-            topLeft = Offset(detectorX, pixelTop - 14f),
-        )
-
-        // Label for Lens
-        drawText(
-            textMeasurer = textMeasurer,
-            text = "Lens",
-            style = smallTextStyle,
-            topLeft = Offset(lensX - 10f, lensTop - 14f),
-        )
-
-        // Label for Range / Distance D
-        drawText(
-            textMeasurer = textMeasurer,
-            text = if (distanceMeters != null) "D = ${formatNumbers(distanceMeters)}m" else "D",
-            style = smallTextStyle,
-            topLeft = Offset((lensX + targetX) / 2f - 20f, centerY + 6f),
-        )
-
-        // Label for IFOV angle
-        if (ifovRad != null) {
-            drawText(
-                textMeasurer = textMeasurer,
-                text = "IFOV: ${formatIfov(ifovRad, ifovUnit)}",
-                style = TextStyle(
-                    color = Color(0xFFFFB74D),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-                topLeft = Offset(lensX + 10f, centerY - 20f),
-            )
-        }
-
-        // Label for GSD on Target
-        val gsdText = if (gsdMeters != null) "GSD: ${formatGsd(gsdMeters)}" else "GSD"
-        drawText(
-            textMeasurer = textMeasurer,
-            text = gsdText,
-            style = TextStyle(
-                color = Color(0xFF81C784),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-            ),
-            topLeft = Offset(targetX - 70f, targetBottom + 2f),
         )
     }
 }

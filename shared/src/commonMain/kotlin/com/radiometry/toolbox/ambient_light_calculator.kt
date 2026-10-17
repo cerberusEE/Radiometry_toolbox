@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -49,18 +50,24 @@ fun AmbientLightVisualization(settingsManager: SettingsManager) {
     val isAvailable = remember { lightSensor.isSensorAvailable() }
 
     var currentLux by remember { mutableFloatStateOf(0f) }
+    var rawLuxValue by remember { mutableFloatStateOf(0f) }
     var minLux by remember { mutableStateOf<Float?>(null) }
     var maxLux by remember { mutableStateOf<Float?>(null) }
     var totalLuxSum by remember { mutableFloatStateOf(0f) }
     var sampleCount by remember { mutableIntStateOf(0) }
 
+    val luxFilter = remember { ScalarLowPassFilter(timeConstantSeconds = 0.5) }
+
     DisposableEffect(isAvailable) {
         if (isAvailable) {
-            lightSensor.startListening { lux ->
-                currentLux = lux
-                minLux = minOf(minLux ?: lux, lux)
-                maxLux = maxOf(maxLux ?: lux, lux)
-                totalLuxSum += lux
+            luxFilter.reset()
+            lightSensor.startListening { rawLux ->
+                val filteredLux = luxFilter.filter(rawLux)
+                rawLuxValue = rawLux
+                currentLux = filteredLux
+                minLux = minOf(minLux ?: filteredLux, filteredLux)
+                maxLux = maxOf(maxLux ?: filteredLux, filteredLux)
+                totalLuxSum += filteredLux
                 sampleCount++
             }
         }
@@ -131,12 +138,34 @@ fun AmbientLightVisualization(settingsManager: SettingsManager) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.Bottom
                     ) {
-                        Text(
-                            text = "${formatNumbers(currentLux.toDouble())} lx",
-                            color = Color(0xFFFFD54F),
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Column {
+                            Text(
+                                text = "${formatNumbers(currentLux.toDouble())} lx",
+                                color = Color(0xFFFFD54F),
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            if (sampleCount > 0) {
+                                Text(
+                                    text = "Raw: ${formatNumbers(rawLuxValue.toDouble())} lx",
+                                    color = Color.White.copy(alpha = 0.6f),
+                                    fontSize = 12.sp,
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.White.copy(alpha = 0.15f),
+                        ) {
+                            Text(
+                                text = "IIR Filtered",
+                                color = Color.White.copy(alpha = 0.8f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
 
                     Text(
@@ -242,6 +271,7 @@ fun AmbientLightVisualization(settingsManager: SettingsManager) {
 
             OutlinedButton(
                 onClick = {
+                    luxFilter.reset()
                     minLux = currentLux
                     maxLux = currentLux
                     totalLuxSum = currentLux

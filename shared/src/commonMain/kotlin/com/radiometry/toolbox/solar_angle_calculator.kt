@@ -139,10 +139,13 @@ fun SolarAngleVisualization(settingsManager: SettingsManager) {
     var currentHeading by remember { mutableStateOf<Float?>(null) }
     var locationStatusMessage by remember { mutableStateOf<String?>(null) }
 
+    val compassFilter = remember { CompassLowPassFilter(timeConstantSeconds = 0.5) }
+
     DisposableEffect(compassEnabled) {
         if (compassEnabled) {
-            compassSensor.startListening { heading ->
-                currentHeading = heading
+            compassFilter.reset()
+            compassSensor.startListening { rawHeading ->
+                currentHeading = compassFilter.filter(rawHeading)
             }
         } else {
             compassSensor.stopListening()

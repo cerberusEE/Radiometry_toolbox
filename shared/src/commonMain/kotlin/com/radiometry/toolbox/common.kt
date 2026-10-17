@@ -1,7 +1,9 @@
 package com.radiometry.toolbox
 
+import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.pow
+import kotlin.time.TimeSource
 
 fun calculateSpectralRadianceForUnit(
     xInUserUnit: Double,
@@ -195,13 +197,13 @@ fun calculateIfovInRadians(focalLengthMm: Double, pixelPitchUm: Double): Double?
     if (focalLengthMm <= 0.0 || pixelPitchUm <= 0.0 || focalLengthMm.isNaN() || pixelPitchUm.isNaN() || focalLengthMm.isInfinite() || pixelPitchUm.isInfinite()) return null
     val focalLengthMeters = focalLengthMm * 1e-3
     val pixelPitchMeters = pixelPitchUm * 1e-6
-    return pixelPitchMeters / focalLengthMeters
+    return 2.0 * kotlin.math.atan(pixelPitchMeters / (2.0 * focalLengthMeters))
 }
 
 fun calculatePixelPitchUm(ifovRadians: Double, focalLengthMm: Double): Double? {
     if (ifovRadians <= 0.0 || focalLengthMm <= 0.0 || ifovRadians.isNaN() || focalLengthMm.isNaN() || ifovRadians.isInfinite() || focalLengthMm.isInfinite()) return null
     val focalLengthMeters = focalLengthMm * 1e-3
-    val pixelPitchMeters = ifovRadians * focalLengthMeters
+    val pixelPitchMeters = 2.0 * focalLengthMeters * kotlin.math.tan(ifovRadians / 2.0)
     return pixelPitchMeters * 1e6
 }
 
@@ -213,4 +215,215 @@ fun calculateGsdInMeters(ifovRadians: Double, distanceMeters: Double): Double? {
 fun calculatePixelFootprintArea(gsdMeters: Double): Double? {
     if (gsdMeters < 0.0 || gsdMeters.isNaN() || gsdMeters.isInfinite()) return null
     return gsdMeters * gsdMeters
+}
+
+/**
+ * Base class for first-order IIR / Exponential Moving Average (EMA) low-pass filters.
+ *
+ * Manages timing, alpha calculation, cutoff frequency, and filter state for sensor stream data.
+ * Subclasses can override preprocessing, delta calculation, or postprocessing to handle domain-specific
+ * requirements (such as angular wrap-around for compass headings).
+ *
+ * @param timeConstantSeconds Target time constant tau in seconds (default: 0.5 seconds).
+ * @param alpha Optional direct filter constant (0.0 < alpha <= 1.0). If specified, overrides dynamic time constant calculation.
+ */
+open class LowPassFilter(
+    var timeConstantSeconds: Double = 0.5,
+    var alpha: Double? = null
+) {
+    var filteredValue: Double? = null
+        protected set
+
+    private var lastTimeMark: TimeSource.Monotonic.ValueTimeMark? = null
+
+    /**
+     * Target cutoff frequency limit in Hz ($f_c = 1 / (2 \pi \tau)$).
+     * Getting or setting this converts to/from [timeConstantSeconds].
+     */
+    var cutoffFrequencyHz: Double
+        get() = 1.0 / (2.0 * PI * timeConstantSeconds.coerceAtLeast(1e-4))
+        set(value) {
+            require(value > 0.0) { "Cutoff frequency must be positive" }
+            timeConstantSeconds = 1.0 / (2.0 * PI * value)
+        }
+
+    /**
+     * Resets the filter state. Call this when enabling the sensor or starting a new session.
+     */
+    open fun reset() {
+        filteredValue = null
+        lastTimeMark = null
+    }
+
+    /**
+     * Filters a new raw sensor reading (Float precision).
+     *
+     * @param rawValue Raw sensor reading.
+     * @param dtSeconds Optional explicit elapsed time since previous sample in seconds.
+     * @return Filtered value.
+     */
+    fun filter(rawValue: Float, dtSeconds: Double? = null): Float {
+        return filter(rawValue.toDouble(), dtSeconds).toFloat()
+    }
+
+    /**
+     * Filters a new raw sensor reading (Double precision).
+     *
+     * @param rawValue Raw sensor reading.
+     * @param dtSeconds Optional explicit elapsed time since previous sample in seconds.
+     * @return Filtered value.
+     */
+    open fun filter(rawValue: Double, dtSeconds: Double? = null): Double {
+        val current = preprocessInput(rawValue)
+        val prev = filteredValue
+        val nowMark = TimeSource.Monotonic.markNow()
+
+        if (prev == null) {
+            filteredValue = current
+            lastTimeMark = nowMark
+            return current
+        }
+
+        val computedDt = dtSeconds ?: run {
+            val mark = lastTimeMark
+            if (mark != null) {
+                val elapsedNs = (nowMark - mark).inWholeNanoseconds
+                if (elapsedNs > 0) elapsedNs / 1e9 else null
+            } else null
+        }
+
+        val effectiveAlpha = computeAlpha(computedDt)
+        val delta = computeDelta(current = current, previous = prev)
+        val updated = postprocessUpdated(prev + effectiveAlpha * delta)
+
+        filteredValue = updated
+        lastTimeMark = nowMark
+
+        return updated
+    }
+
+    /**
+     * Preprocesses raw input value before filtering. Default implementation returns input unchanged.
+     */
+    protected open fun preprocessInput(rawValue: Double): Double = rawValue
+
+    /**
+     * Computes the error delta between current and previous values.
+     * Default implementation returns `current - previous`.
+     */
+    protected open fun computeDelta(current: Double, previous: Double): Double = current - previous
+
+    /**
+     * Postprocesses updated value after EMA step. Default implementation returns updated value unchanged.
+     */
+    protected open fun postprocessUpdated(updatedValue: Double): Double = updatedValue
+
+    /**
+     * Computes the effective alpha smoothing factor for the current step.
+     */
+    protected fun computeAlpha(dtSeconds: Double?): Double {
+        alpha?.let { return it.coerceIn(0.001, 1.0) }
+
+        if (dtSeconds != null && dtSeconds > 0.0 && dtSeconds < 2.0) {
+            val tau = timeConstantSeconds.coerceAtLeast(1e-4)
+            return (dtSeconds / (tau + dtSeconds)).coerceIn(0.001, 1.0)
+        }
+
+        // Fallback default sample interval if dt is unavailable (~60ms / 16.6 Hz sensor UI delay)
+        val defaultDt = 0.06
+        val tau = timeConstantSeconds.coerceAtLeast(1e-4)
+        return (defaultDt / (tau + defaultDt)).coerceIn(0.001, 1.0)
+    }
+
+    companion object {
+        /**
+         * Creates a filter configured for a specific cutoff frequency in Hz.
+         */
+        fun fromCutoffFrequency(cutoffFrequencyHz: Double): LowPassFilter {
+            require(cutoffFrequencyHz > 0.0) { "Cutoff frequency must be positive" }
+            val tau = 1.0 / (2.0 * PI * cutoffFrequencyHz)
+            return LowPassFilter(timeConstantSeconds = tau)
+        }
+    }
+}
+
+/**
+ * Low-pass filter for scalar sensor values (e.g. ambient light lux, temperature) using a first-order IIR /
+ * Exponential Moving Average (EMA) algorithm.
+ *
+ * @param timeConstantSeconds Target time constant tau in seconds (default: 0.5 seconds).
+ * @param alpha Optional direct filter constant (0.0 < alpha <= 1.0).
+ */
+class ScalarLowPassFilter(
+    timeConstantSeconds: Double = 0.5,
+    alpha: Double? = null
+) : LowPassFilter(timeConstantSeconds, alpha) {
+
+    companion object {
+        /**
+         * Creates a scalar filter configured for a specific cutoff frequency in Hz.
+         */
+        fun fromCutoffFrequency(cutoffFrequencyHz: Double): ScalarLowPassFilter {
+            require(cutoffFrequencyHz > 0.0) { "Cutoff frequency must be positive" }
+            val tau = 1.0 / (2.0 * PI * cutoffFrequencyHz)
+            return ScalarLowPassFilter(timeConstantSeconds = tau)
+        }
+    }
+}
+
+/**
+ * Low-pass filter for compass headings (in degrees, [0, 360)) using a first-order IIR /
+ * Exponential Moving Average (EMA) algorithm.
+ *
+ * Smooths out high-frequency sensor jitter while handling angular wrap-around at 0° / 360°.
+ *
+ * @param timeConstantSeconds Target time constant tau in seconds (default: 0.5 seconds).
+ * @param alpha Optional direct filter constant (0.0 < alpha <= 1.0). If specified, overrides dynamic time constant calculation.
+ */
+class CompassLowPassFilter(
+    timeConstantSeconds: Double = 0.5,
+    alpha: Double? = null
+) : LowPassFilter(timeConstantSeconds, alpha) {
+
+    override fun preprocessInput(rawValue: Double): Double {
+        return normalizeHeading360(rawValue)
+    }
+
+    override fun computeDelta(current: Double, previous: Double): Double {
+        return normalizeAngle180(current - previous)
+    }
+
+    override fun postprocessUpdated(updatedValue: Double): Double {
+        return normalizeHeading360(updatedValue)
+    }
+
+    companion object {
+        /**
+         * Normalizes an angle in degrees to the range [0, 360).
+         */
+        fun normalizeHeading360(headingDeg: Double): Double {
+            var h = headingDeg % 360.0
+            if (h < 0.0) h += 360.0
+            return h
+        }
+
+        /**
+         * Normalizes an angular difference in degrees to the range [-180, 180].
+         */
+        fun normalizeAngle180(angleDeg: Double): Double {
+            var a = (angleDeg + 180.0) % 360.0
+            if (a < 0.0) a += 360.0
+            return a - 180.0
+        }
+
+        /**
+         * Creates a compass filter configured for a specific cutoff frequency in Hz.
+         * For example, cutoffFrequencyHz = 2.0 corresponds to tau ≈ 0.0796 seconds.
+         */
+        fun fromCutoffFrequency(cutoffFrequencyHz: Double): CompassLowPassFilter {
+            require(cutoffFrequencyHz > 0.0) { "Cutoff frequency must be positive" }
+            val tau = 1.0 / (2.0 * PI * cutoffFrequencyHz)
+            return CompassLowPassFilter(timeConstantSeconds = tau)
+        }
+    }
 }

@@ -1,7 +1,15 @@
 package com.radiometry.toolbox
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,30 +19,37 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.contentColorFor
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,13 +57,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 
-
 /*
+TODO: Bugfix! the luxvalues for ambient light sensor are not updated at a constant rate (only new values are sent). This makes the low pass filtering not work as intended.
 TODO more tools!
-TODO: Solar angle calculator tool. Use SPA function to calculate solar angle at any position and time. Use location services to get be able to calculate solar angle at current time and position.
 TODO: Utilize solar calculator tool to make a spectral solar irradiance tool with band selection.
 TODO: Dynamic range calculator tool. Input is full well capacity in electrons (e-), read noise in ADC counts, ADC-bits. Assume a black level of 0 and full well saturation at 2^ADC-bits. Output is dynamic range in dB. Also calculate maximum SNR in dB assuming photon noise limited system.
-TODO: Figure out a new layout of the tools. Or more likely a zoom out function where typical zoom out is used to show a new screen with just all the tools and clicking on one will show the tool.
 ----  Dynamic Range Calculator -----
 Inputs:
 
@@ -77,9 +90,9 @@ Required exposure
 // Define the available tools in the toolbox
 val tools = listOf(
     Tool("Radiance Calculator", "Calculate radiance values", Color(0xFF5F7289)),
+    Tool("Temperature Comparison", "Compare radiance contrast between two temperatures", Color(0xFF64708A)),
     Tool("Temperature Converter", "Convert between temperature units", Color(0xFF58766A)),
     Tool("Light source calculator", "Calculate irradiance from a light source", Color(0xFF76607B)),
-    Tool("Temperature Comparison", "Compare radiance contrast between two temperatures", Color(0xFF64708A)),
     Tool("Pixel Footprint & GSD", "Calculate IFOV and Ground Sampling Distance", Color(0xFF727058)),
     Tool("Solar Angle Calculator", "Calculate solar position and compass orientation", Color(0xFF8C6D58)),
     Tool("Ambient Light Sensor", "Measure ambient illuminance using the light sensor", Color(0xFF6D7858)),
@@ -127,6 +140,7 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
             settingsManager.getInt("key_current_tool_index", 0).coerceIn(0, tools.size - 1),
         )
     }
+    var isZoomedOut by remember { mutableStateOf(false) }
     var expandedSettingIndex by remember { mutableIntStateOf(-1) }
 
     var sharedTemperatureText by remember {
@@ -173,13 +187,10 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
 
     val currentTool = tools[currentToolIndex]
 
-    var dragAccumulatorX by remember { mutableFloatStateOf(0f) }
-    var dragAccumulatorY by remember { mutableFloatStateOf(0f) }
-
     val scrollState = rememberScrollState()
 
-    // Reset scroll position to top when switching tools
-    LaunchedEffect(currentToolIndex) {
+    // Reset scroll position to top when switching tools or opening tools list
+    LaunchedEffect(currentToolIndex, isZoomedOut) {
         scrollState.scrollTo(0)
     }
 
@@ -192,52 +203,79 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                 .fillMaxSize()
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
-                .pointerInput(currentToolIndex, expandedSettingIndex) {
-                    detectDragGestures(
-                        onDragEnd = {
-                            dragAccumulatorX = 0f
-                            dragAccumulatorY = 0f
-                        },
-                        onDragCancel = {
-                            dragAccumulatorX = 0f
-                            dragAccumulatorY = 0f
-                        },
-                    ) { change, dragAmount ->
-                        dragAccumulatorX += dragAmount.x
-                        dragAccumulatorY += dragAmount.y
+                .pointerInput(currentToolIndex, isZoomedOut, expandedSettingIndex) {
+                    awaitEachGesture {
+                        var initialDist = -1f
+                        var dragAccumulatorX = 0f
+                        var dragAccumulatorY = 0f
 
-                        // Horizontal swipe detection for tool navigation
-                        if ((abs(dragAccumulatorX) > 80f) && (abs(dragAccumulatorX) > abs(
-                                dragAccumulatorY,
-                            ))
-                        ) {
-                            change.consume()
-                            if ((dragAccumulatorX < 0f) && (currentToolIndex < (tools.size - 1))) {
-                                // Swipe LEFT -> next tool
-                                currentToolIndex++
-                                settingsManager.putInt("key_current_tool_index", currentToolIndex)
-                                expandedSettingIndex = -1
-                            } else if ((dragAccumulatorX > 0f) && (currentToolIndex > 0)) {
-                                // Swipe RIGHT -> previous tool
-                                currentToolIndex--
-                                settingsManager.putInt("key_current_tool_index", currentToolIndex)
-                                expandedSettingIndex = -1
+                        awaitFirstDown(requireUnconsumed = false)
+
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val pressedPointers = event.changes.filter { it.pressed }
+
+                            if (pressedPointers.size >= 2) {
+                                // Multi-touch pinch gesture: calculated via 2D Euclidean distance between pointers
+                                val p1 = pressedPointers[0].position
+                                val p2 = pressedPointers[1].position
+                                val currentDist = (p1 - p2).getDistance()
+
+                                if (initialDist < 0f) {
+                                    initialDist = currentDist
+                                } else if (initialDist > 0f) {
+                                    val scale = currentDist / initialDist
+
+                                    if (!isZoomedOut) {
+                                        if (scale < 0.8f) {
+                                            // Pinch in (zoom out gesture) -> open tools overview
+                                            isZoomedOut = true
+                                            event.changes.forEach { it.consume() }
+                                            break
+                                        }
+                                    } else {
+                                        if (scale > 1.25f) {
+                                            // Pinch out (zoom in gesture) -> return to tool view
+                                            isZoomedOut = false
+                                            event.changes.forEach { it.consume() }
+                                            break
+                                        }
+                                    }
+                                }
+                            } else if (pressedPointers.size == 1) {
+                                initialDist = -1f
+                                val change = pressedPointers[0]
+                                if (!change.isConsumed) {
+                                    val dragAmount = change.position - change.previousPosition
+                                    dragAccumulatorX += dragAmount.x
+                                    dragAccumulatorY += dragAmount.y
+
+                                    if (!isZoomedOut) {
+                                        if (abs(dragAccumulatorX) > 80f && abs(dragAccumulatorX) > abs(dragAccumulatorY) * 1.5f) {
+                                            // Horizontal swipe -> switch tool
+                                            change.consume()
+                                            if (dragAccumulatorX < 0f && currentToolIndex < tools.size - 1) {
+                                                currentToolIndex++
+                                                settingsManager.putInt("key_current_tool_index", currentToolIndex)
+                                                expandedSettingIndex = -1
+                                            } else if (dragAccumulatorX > 0f && currentToolIndex > 0) {
+                                                currentToolIndex--
+                                                settingsManager.putInt("key_current_tool_index", currentToolIndex)
+                                                expandedSettingIndex = -1
+                                            }
+                                            break
+                                        } else if (abs(dragAccumulatorY) > 80f && abs(dragAccumulatorY) > abs(dragAccumulatorX)) {
+                                            dragAccumulatorX = 0f
+                                            dragAccumulatorY = 0f
+                                        }
+                                    }
+                                }
                             }
-                            dragAccumulatorX = 0f
-                            dragAccumulatorY = 0f
-                        }
-                        // Vertical drag detection
-                        else if ((abs(dragAccumulatorY) > 80f) && (abs(dragAccumulatorY) > abs(
-                                dragAccumulatorX,
-                            ))
-                        ) {
-                            dragAccumulatorX = 0f
-                            dragAccumulatorY = 0f
-                        }
+                        } while (event.changes.any { it.pressed })
                     }
                 },
         ) {
-            // Tool selector header
+            // Header bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -248,7 +286,7 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
-                    text = currentTool.name,
+                    text = if (isZoomedOut) "All Tools" else currentTool.name,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
@@ -257,31 +295,218 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                     modifier = Modifier.weight(1f, fill = false),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "${currentToolIndex + 1}/${tools.size}",
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (!isZoomedOut) {
+                        Text(
+                            text = "${currentToolIndex + 1}/${tools.size}",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        IconButton(
+                            onClick = { isZoomedOut = true },
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            GridIcon(
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    } else {
+                        TextButton(onClick = { isZoomedOut = false }) {
+                            Text(
+                                text = "Close",
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
             }
 
-            // Scrollable content area for visualization panel
-            Column(
+            // Main content area with smooth animation between zoomed out overview and active tool
+            AnimatedContent(
+                targetState = isZoomedOut,
+                transitionSpec = {
+                    fadeIn() togetherWith fadeOut()
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
-                    .verticalScroll(scrollState)
-                    .padding(16.dp),
+                    .weight(1f),
+            ) { zoomedOut ->
+                if (zoomedOut) {
+                    ToolSelectionList(
+                        tools = tools,
+                        currentToolIndex = currentToolIndex,
+                        onToolSelected = { index ->
+                            currentToolIndex = index
+                            settingsManager.putInt("key_current_tool_index", index)
+                            expandedSettingIndex = -1
+                            isZoomedOut = false
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(scrollState)
+                            .padding(16.dp),
+                    ) {
+                        VisualizationPanel(
+                            tool = currentTool,
+                            settingsManager = settingsManager,
+                            temperatureText = sharedTemperatureText,
+                            onTemperatureTextChange = onTemperatureTextChange,
+                            temperatureUnit = sharedTemperatureUnit,
+                            onTemperatureUnitChange = onTemperatureUnitChange,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GridIcon(
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+) {
+    val iconColor = if (color == Color.Unspecified) MaterialTheme.colorScheme.onPrimaryContainer else color
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        val strokeWidth = 2.dp.toPx()
+        val cellSize = width * 0.38f
+        val gap = width * 0.12f
+        val startX = (width - (cellSize * 2 + gap)) / 2f
+        val startY = (height - (cellSize * 2 + gap)) / 2f
+
+        drawRoundRect(
+            color = iconColor,
+            topLeft = Offset(startX, startY),
+            size = Size(cellSize, cellSize),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(strokeWidth),
+        )
+        drawRoundRect(
+            color = iconColor,
+            topLeft = Offset(startX + cellSize + gap, startY),
+            size = Size(cellSize, cellSize),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(strokeWidth),
+        )
+        drawRoundRect(
+            color = iconColor,
+            topLeft = Offset(startX, startY + cellSize + gap),
+            size = Size(cellSize, cellSize),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(strokeWidth),
+        )
+        drawRoundRect(
+            color = iconColor,
+            topLeft = Offset(startX + cellSize + gap, startY + cellSize + gap),
+            size = Size(cellSize, cellSize),
+            cornerRadius = CornerRadius(2.dp.toPx()),
+            style = Stroke(strokeWidth),
+        )
+    }
+}
+
+@Composable
+fun ToolSelectionList(
+    tools: List<Tool>,
+    currentToolIndex: Int,
+    onToolSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = modifier
+            .verticalScroll(scrollState)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = "Select a Tool",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+
+        tools.forEachIndexed { index, tool ->
+            val isSelected = (index == currentToolIndex)
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToolSelected(index) },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = tool.color,
+                    contentColor = contentColorFor(tool.color),
+                ),
+                border = if (isSelected) {
+                    BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                } else null,
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = if (isSelected) 6.dp else 2.dp,
+                ),
             ) {
-                VisualizationPanel(
-                    tool = currentTool,
-                    settingsManager = settingsManager,
-                    temperatureText = sharedTemperatureText,
-                    onTemperatureTextChange = onTemperatureTextChange,
-                    temperatureUnit = sharedTemperatureUnit,
-                    onTemperatureUnitChange = onTemperatureUnitChange,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = "${index + 1}.",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = contentColorFor(tool.color).copy(alpha = 0.8f),
+                            )
+                            Text(
+                                text = tool.name,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = contentColorFor(tool.color),
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = tool.description,
+                            fontSize = 14.sp,
+                            color = contentColorFor(tool.color).copy(alpha = 0.9f),
+                        )
+                    }
+
+                    if (isSelected) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary,
+                        ) {
+                            Text(
+                                text = "Active",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
     }
