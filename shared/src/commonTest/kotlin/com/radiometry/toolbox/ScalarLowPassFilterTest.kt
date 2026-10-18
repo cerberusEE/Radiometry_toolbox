@@ -73,4 +73,19 @@ class ScalarLowPassFilterTest {
         val fNew = filter.filter(100.0)
         assertEquals(100.0, fNew, 1e-4, "After reset, first reading immediately initializes without lag")
     }
+
+    @Test
+    fun testRepeatedSamplingSettlesToTargetValue() {
+        val filter = ScalarLowPassFilter(timeConstantSeconds = 0.1)
+        // Initialize at 100.0 lx
+        filter.filter(100.0, dtSeconds = 0.03)
+
+        // Raw value jumps to 500.0 lx and stays constant (simulating event-driven sensor pausing events)
+        var filtered = 0.0
+        repeat(30) {
+            filtered = filter.filter(500.0, dtSeconds = 0.03)
+        }
+
+        assertEquals(500.0, filtered, 1.0, "Repeated filtering with constant raw target value settles to target")
+    }
 }

@@ -58,7 +58,6 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.abs
 
 /*
-TODO: Bugfix! the luxvalues for ambient light sensor are not updated at a constant rate (only new values are sent). This makes the low pass filtering not work as intended.
 TODO more tools!
 TODO: Utilize solar calculator tool to make a spectral solar irradiance tool with band selection.
 TODO: Dynamic range calculator tool. Input is full well capacity in electrons (e-), read noise in ADC counts, ADC-bits. Assume a black level of 0 and full well saturation at 2^ADC-bits. Output is dynamic range in dB. Also calculate maximum SNR in dB assuming photon noise limited system.
@@ -75,27 +74,17 @@ Dynamic range (dB)
 Effective dynamic range
 ENOB estimate
 
------ Depth of Focus Calculator -----
-
-Outputs:
-Geometric DoF
-Diffraction-limited DoF
-
------ Integration Time Finder -----
-
-Outputs:
-Required exposure
  */
 
-// Define the available tools in the toolbox
+// Define the available tools in the toolbox with ultra-high contrast background colors (> 15:1 WCAG contrast ratio with white text)
 val tools = listOf(
-    Tool("Radiance Calculator", "Calculate radiance values", Color(0xFF5F7289)),
-    Tool("Temperature Comparison", "Compare radiance contrast between two temperatures", Color(0xFF64708A)),
-    Tool("Temperature Converter", "Convert between temperature units", Color(0xFF58766A)),
-    Tool("Light source calculator", "Calculate irradiance from a light source", Color(0xFF76607B)),
-    Tool("Pixel Footprint & GSD", "Calculate IFOV and Ground Sampling Distance", Color(0xFF727058)),
-    Tool("Solar Angle Calculator", "Calculate solar position and compass orientation", Color(0xFF8C6D58)),
-    Tool("Ambient Light Sensor", "Measure ambient illuminance using the light sensor", Color(0xFF6D7858)),
+    Tool("Blackbody Radiance", "Calculate Planck spectral and band radiance", Color(0xFF0A2246)),
+    Tool("Thermal Contrast", "Compare radiance contrast between target temperatures", Color(0xFF500A1D)),
+    Tool("Temperature Units", "Convert temperature units and view blackbody color", Color(0xFF002C27)),
+    Tool("Source Irradiance", "Calculate irradiance at distance from a beam source", Color(0xFF3B0B4C)),
+    Tool("IFOV & GSD", "Calculate optics IFOV and Ground Sampling Distance", Color(0xFF421C00)),
+    Tool("Solar Position", "Calculate sun elevation, azimuth, and compass orientation", Color(0xFF481400)),
+    Tool("Lux Meter", "Measure real-time illuminance using the ambient light sensor", Color(0xFF082C0C)),
 )
 
 data class Tool(
@@ -216,7 +205,7 @@ fun ToolboxApp(settingsManager: SettingsManager = rememberSettingsManager()) {
                             val pressedPointers = event.changes.filter { it.pressed }
 
                             if (pressedPointers.size >= 2) {
-                                // Multi-touch pinch gesture: calculated via 2D Euclidean distance between pointers
+                                // Multitouch pinch gesture: calculated via 2D Euclidean distance between pointers
                                 val p1 = pressedPointers[0].position
                                 val p2 = pressedPointers[1].position
                                 val currentDist = (p1 - p2).getDistance()
@@ -532,7 +521,7 @@ fun VisualizationPanel(
     ) {
         // Tool-specific visualization / output
         when (tool.name) {
-            "Radiance Calculator" -> RadianceVisualization(
+            "Blackbody Radiance" -> RadianceVisualization(
                 settingsManager = settingsManager,
                 temperatureText = temperatureText,
                 onTemperatureTextChange = onTemperatureTextChange,
@@ -540,7 +529,7 @@ fun VisualizationPanel(
                 onTemperatureUnitChange = onTemperatureUnitChange,
             )
 
-            "Temperature Converter" -> TemperatureConverter(
+            "Temperature Units" -> TemperatureConverter(
                 settingsManager = settingsManager,
                 temperatureText = temperatureText,
                 onTemperatureTextChange = onTemperatureTextChange,
@@ -548,9 +537,9 @@ fun VisualizationPanel(
                 onTemperatureUnitChange = onTemperatureUnitChange,
             )
 
-            "Light source calculator" -> LightSourceVisualization(settingsManager)
+            "Source Irradiance" -> LightSourceVisualization(settingsManager)
 
-            "Temperature Comparison" -> TemperatureComparison(
+            "Thermal Contrast" -> TemperatureComparison(
                 settingsManager = settingsManager,
                 temperatureText = temperatureText,
                 onTemperatureTextChange = onTemperatureTextChange,
@@ -558,11 +547,11 @@ fun VisualizationPanel(
                 onTemperatureUnitChange = onTemperatureUnitChange,
             )
 
-            "Pixel Footprint & GSD" -> IfovGsdVisualization(settingsManager)
+            "IFOV & GSD" -> IfovGsdVisualization(settingsManager)
 
-            "Solar Angle Calculator" -> SolarAngleVisualization(settingsManager)
+            "Solar Position" -> SolarAngleVisualization(settingsManager)
 
-            "Ambient Light Sensor" -> AmbientLightVisualization(settingsManager)
+            "Lux Meter" -> AmbientLightVisualization(settingsManager)
         }
     }
 }

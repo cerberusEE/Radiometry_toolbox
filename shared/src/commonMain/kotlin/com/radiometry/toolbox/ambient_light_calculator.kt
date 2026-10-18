@@ -12,10 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -30,6 +30,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlin.math.log10
 
 fun getLightEnvironmentCategory(lux: Float): String {
@@ -55,25 +57,44 @@ fun AmbientLightVisualization(settingsManager: SettingsManager) {
     var maxLux by remember { mutableStateOf<Float?>(null) }
     var totalLuxSum by remember { mutableFloatStateOf(0f) }
     var sampleCount by remember { mutableIntStateOf(0) }
+    var hasReceivedSample by remember { mutableStateOf(false) }
 
-    val luxFilter = remember { ScalarLowPassFilter(timeConstantSeconds = 0.5) }
+    val luxFilter = remember { ScalarLowPassFilter(timeConstantSeconds = 0.1) }
 
     DisposableEffect(isAvailable) {
         if (isAvailable) {
             luxFilter.reset()
+            hasReceivedSample = false
             lightSensor.startListening { rawLux ->
-                val filteredLux = luxFilter.filter(rawLux)
                 rawLuxValue = rawLux
-                currentLux = filteredLux
-                minLux = minOf(minLux ?: filteredLux, filteredLux)
-                maxLux = maxOf(maxLux ?: filteredLux, filteredLux)
-                totalLuxSum += filteredLux
+                totalLuxSum += rawLux
                 sampleCount++
+                if (!hasReceivedSample) {
+                    hasReceivedSample = true
+                }
             }
         }
         onDispose {
             if (isAvailable) {
                 lightSensor.stopListening()
+            }
+        }
+    }
+
+    // Periodic ticker to continuously filter the raw lux reading.
+    // Ambient light sensors on Android only emit events when the lux value changes.
+    // This ticker loop provides periodic synthetic filtering updates so that the low-pass filter
+    // smoothly decays and settles to the actual raw lux target even when hardware sensor callbacks pause.
+    LaunchedEffect(isAvailable) {
+        if (isAvailable) {
+            while (isActive) {
+                if (hasReceivedSample) {
+                    val filteredLux = luxFilter.filter(rawLuxValue)
+                    currentLux = filteredLux
+                    minLux = minOf(minLux ?: filteredLux, filteredLux)
+                    maxLux = maxOf(maxLux ?: filteredLux, filteredLux)
+                }
+                delay(30)
             }
         }
     }
@@ -152,19 +173,6 @@ fun AmbientLightVisualization(settingsManager: SettingsManager) {
                                     fontSize = 12.sp,
                                 )
                             }
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color.White.copy(alpha = 0.15f),
-                        ) {
-                            Text(
-                                text = "IIR Filtered",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
                         }
                     }
 
@@ -272,10 +280,19 @@ fun AmbientLightVisualization(settingsManager: SettingsManager) {
             OutlinedButton(
                 onClick = {
                     luxFilter.reset()
-                    minLux = currentLux
-                    maxLux = currentLux
-                    totalLuxSum = currentLux
-                    sampleCount = 1
+                    if (hasReceivedSample) {
+                        minLux = rawLuxValue
+                        maxLux = rawLuxValue
+                        totalLuxSum = rawLuxValue
+                        sampleCount = 1
+                        currentLux = rawLuxValue
+                    } else {
+                        minLux = null
+                        maxLux = null
+                        totalLuxSum = 0f
+                        sampleCount = 0
+                        currentLux = 0f
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
