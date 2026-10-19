@@ -1,5 +1,12 @@
 package com.radiometry.toolbox
 
+import androidx.compose.ui.graphics.Color
+
+data class Tool(
+    val name: String,
+    val description: String,
+    val color: Color,
+)
 enum class WavelengthUnit(val symbol: String, val label: String) {
     NANOMETERS("nm", "Nanometers"),
     MICROMETERS("µm", "Micrometers"),
