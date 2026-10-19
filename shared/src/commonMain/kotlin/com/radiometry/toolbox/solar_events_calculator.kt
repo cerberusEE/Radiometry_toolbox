@@ -395,6 +395,8 @@ fun formatDaylightDuration(seconds: Long?): String {
 @Composable
 fun SolarEventsVisualization(settingsManager: SettingsManager) {
     val locationProvider = rememberLocationProvider()
+    val mapLauncher = rememberMapLauncher()
+    val clipboardManager = rememberClipboardManager()
     val systemNow = remember { getSystemDateTime() }
 
     var latitudeText by remember {
@@ -730,11 +732,58 @@ fun SolarEventsVisualization(settingsManager: SettingsManager) {
                 modifier = Modifier
                     .padding(top = 6.dp)
                     .height(56.dp)
-                    .width(52.dp),
+                    .width(44.dp),
                 contentPadding = PaddingValues(0.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
             ) {
-                LocationPinIcon(modifier = Modifier.size(24.dp))
+                LocationPinIcon(modifier = Modifier.size(20.dp))
+            }
+
+            OutlinedButton(
+                onClick = {
+                    val latVal = latitudeText.toDoubleOrNull() ?: 0.0
+                    val lonVal = longitudeText.toDoubleOrNull() ?: 0.0
+                    mapLauncher.openMap(latVal, lonVal)
+                    locationStatusMessage = "Opened Maps app. Drop a pin & copy coordinates!"
+                },
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .height(56.dp)
+                    .width(44.dp),
+                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+            ) {
+                MapIcon(modifier = Modifier.size(20.dp))
+            }
+
+            OutlinedButton(
+                onClick = {
+                    val clipText = clipboardManager.getClipboardText()
+                    if (!clipText.isNullOrBlank()) {
+                        val parsed = parseCoordinates(clipText)
+                        if (parsed != null) {
+                            val latStr = formatNumbers(parsed.latitude)
+                            val lonStr = formatNumbers(parsed.longitude)
+                            latitudeText = latStr
+                            longitudeText = lonStr
+                            settingsManager.putString("key_solar_latitude", latStr)
+                            settingsManager.putString("key_solar_longitude", lonStr)
+                            locationStatusMessage = "Pasted coordinates from clipboard!"
+                        } else {
+                            locationStatusMessage = "Clipboard text contains no valid coordinates."
+                        }
+                    } else {
+                        locationStatusMessage = "Clipboard is empty."
+                    }
+                },
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .height(56.dp)
+                    .width(44.dp),
+                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+            ) {
+                ClipboardIcon(modifier = Modifier.size(20.dp))
             }
         }
 

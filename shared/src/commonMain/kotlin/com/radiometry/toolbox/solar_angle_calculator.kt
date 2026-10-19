@@ -72,6 +72,55 @@ fun LocationPinIcon(modifier: Modifier = Modifier, color: Color = Color.White) {
 }
 
 @Composable
+fun MapIcon(modifier: Modifier = Modifier, color: Color = Color.White) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = 2.dp.toPx()
+
+        val path = Path().apply {
+            moveTo(w * 0.1f, h * 0.2f)
+            lineTo(w * 0.38f, h * 0.1f)
+            lineTo(w * 0.62f, h * 0.2f)
+            lineTo(w * 0.9f, h * 0.1f)
+            lineTo(w * 0.9f, h * 0.8f)
+            lineTo(w * 0.62f, h * 0.9f)
+            lineTo(w * 0.38f, h * 0.8f)
+            lineTo(w * 0.1f, h * 0.9f)
+            close()
+        }
+        drawPath(path, color = color, style = Stroke(stroke))
+
+        drawLine(color = color, start = Offset(w * 0.38f, h * 0.1f), end = Offset(w * 0.38f, h * 0.8f), strokeWidth = stroke)
+        drawLine(color = color, start = Offset(w * 0.62f, h * 0.2f), end = Offset(w * 0.62f, h * 0.9f), strokeWidth = stroke)
+    }
+}
+
+@Composable
+fun ClipboardIcon(modifier: Modifier = Modifier, color: Color = Color.White) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = 2.dp.toPx()
+
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(w * 0.2f, h * 0.22f),
+            size = androidx.compose.ui.geometry.Size(w * 0.6f, h * 0.68f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()),
+            style = Stroke(stroke)
+        )
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(w * 0.35f, h * 0.12f),
+            size = androidx.compose.ui.geometry.Size(w * 0.3f, h * 0.14f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+            style = Stroke(stroke)
+        )
+    }
+}
+
+@Composable
 fun CompassIcon(enabled: Boolean, modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val center = Offset(size.width / 2f, size.height / 2f)
@@ -105,6 +154,8 @@ fun CompassIcon(enabled: Boolean, modifier: Modifier = Modifier) {
 fun SolarAngleVisualization(settingsManager: SettingsManager) {
     val locationProvider = rememberLocationProvider()
     val compassSensor = rememberCompassSensor()
+    val mapLauncher = rememberMapLauncher()
+    val clipboardManager = rememberClipboardManager()
 
     val systemNow = remember { getSystemDateTime() }
 
@@ -333,11 +384,58 @@ fun SolarAngleVisualization(settingsManager: SettingsManager) {
                 modifier = Modifier
                     .padding(top = 6.dp)
                     .height(56.dp)
-                    .width(52.dp),
+                    .width(44.dp),
                 contentPadding = PaddingValues(0.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
             ) {
-                LocationPinIcon(modifier = Modifier.size(24.dp))
+                LocationPinIcon(modifier = Modifier.size(20.dp))
+            }
+
+            OutlinedButton(
+                onClick = {
+                    val latVal = latitudeText.toDoubleOrNull() ?: 0.0
+                    val lonVal = longitudeText.toDoubleOrNull() ?: 0.0
+                    mapLauncher.openMap(latVal, lonVal)
+                    locationStatusMessage = "Opened Maps app. Drop a pin & copy coordinates!"
+                },
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .height(56.dp)
+                    .width(44.dp),
+                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+            ) {
+                MapIcon(modifier = Modifier.size(20.dp))
+            }
+
+            OutlinedButton(
+                onClick = {
+                    val clipText = clipboardManager.getClipboardText()
+                    if (!clipText.isNullOrBlank()) {
+                        val parsed = parseCoordinates(clipText)
+                        if (parsed != null) {
+                            val latStr = formatNumbers(parsed.latitude)
+                            val lonStr = formatNumbers(parsed.longitude)
+                            latitudeText = latStr
+                            longitudeText = lonStr
+                            settingsManager.putString("key_solar_latitude", latStr)
+                            settingsManager.putString("key_solar_longitude", lonStr)
+                            locationStatusMessage = "Pasted coordinates from clipboard!"
+                        } else {
+                            locationStatusMessage = "Clipboard text contains no valid coordinates."
+                        }
+                    } else {
+                        locationStatusMessage = "Clipboard is empty."
+                    }
+                },
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .height(56.dp)
+                    .width(44.dp),
+                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+            ) {
+                ClipboardIcon(modifier = Modifier.size(20.dp))
             }
         }
 

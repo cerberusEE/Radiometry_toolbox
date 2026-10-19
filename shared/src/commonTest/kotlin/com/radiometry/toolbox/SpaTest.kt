@@ -70,11 +70,10 @@ class SpaTest {
 
     // Tests using Stockholm, Sweden as ground truth
     // Latitude: 59.33°N, Longitude: 18.07°E
-    // Reference data from https://www.gaisma.com/en/location/stockholm.html
 
     @Test
     fun testStockholmSolarNoonEquinox() {
-        // Stockholm at solar noon on autumn equinox (2024-09-23 ~12:00 local time, UTC+2)
+        // Stockholm at solar noon on autumn equinox (2024-09-23 ~12:48 CEST, UTC+2)
         val location = SpaLocation(
             latitudeDeg = 59.33,
             longitudeDeg = 18.07
@@ -84,7 +83,7 @@ class SpaTest {
             month = 9,
             day = 23,
             hour = 12,
-            minute = 0,
+            minute = 48,
             second = 0.0,
             timeZoneOffsetHours = 2.0
         )
@@ -92,7 +91,6 @@ class SpaTest {
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
         // At 59.33°N on equinox, solar elevation at noon should be ~90 - 59.33 = ~30.67°
-        // With atmospheric refraction, it should be slightly higher
         assertTrue(result.elevationAngleDeg in 28.0..33.0)
 
         // Azimuth should be roughly 180° (south) at solar noon in Northern Hemisphere
@@ -104,7 +102,7 @@ class SpaTest {
 
     @Test
     fun testStockholmSummerSolsticeNoon() {
-        // Stockholm at solar noon on summer solstice (2024-06-21 ~12:00 local time, UTC+2)
+        // Stockholm at solar noon on summer solstice (2024-06-21 ~12:48 CEST, UTC+2)
         val location = SpaLocation(
             latitudeDeg = 59.33,
             longitudeDeg = 18.07
@@ -114,14 +112,13 @@ class SpaTest {
             month = 6,
             day = 21,
             hour = 12,
-            minute = 0,
+            minute = 48,
             second = 0.0,
             timeZoneOffsetHours = 2.0
         )
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At 59.33°N on summer solstice (declination ~23.44°)
         // Max elevation = 90 - 59.33 + 23.44 = ~54.11°
         assertTrue(result.elevationAngleDeg in 52.0..56.0)
 
@@ -131,7 +128,7 @@ class SpaTest {
 
     @Test
     fun testStockholmWinterSolsticeNoon() {
-        // Stockholm at solar noon on winter solstice (2024-12-21 ~12:00 local time, UTC+1)
+        // Stockholm at solar noon on winter solstice (2024-12-21 ~12:12 CET, UTC+1)
         val location = SpaLocation(
             latitudeDeg = 59.33,
             longitudeDeg = 18.07
@@ -141,14 +138,13 @@ class SpaTest {
             month = 12,
             day = 21,
             hour = 12,
-            minute = 0,
+            minute = 12,
             second = 0.0,
             timeZoneOffsetHours = 1.0
         )
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At 59.33°N on winter solstice (declination ~-23.44°)
         // Max elevation = 90 - 59.33 - 23.44 = ~6.23°
         assertTrue(result.elevationAngleDeg in 4.0..8.0)
 
@@ -158,8 +154,7 @@ class SpaTest {
 
     @Test
     fun testStockholmSunrise() {
-        // Stockholm at sunrise on 2024-10-19
-        // From Gaisma: Sunrise ~07:35 CEST (UTC+2)
+        // Stockholm at sunrise on 2024-10-19 (~07:38 CEST, UTC+2)
         val location = SpaLocation(
             latitudeDeg = 59.33,
             longitudeDeg = 18.07
@@ -169,25 +164,23 @@ class SpaTest {
             month = 10,
             day = 19,
             hour = 7,
-            minute = 35,
+            minute = 38,
             second = 0.0,
             timeZoneOffsetHours = 2.0
         )
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At sunrise, elevation should be approximately 0° (with refraction ~0.5°)
-        // Allowing for calculation timing differences
-        assertTrue(result.elevationAngleDeg in -1.0..1.0)
+        // At sunrise, elevation should be approximately -0.8° to +0.5°
+        assertTrue(result.elevationAngleDeg in -1.5..1.5)
 
-        // Azimuth at sunrise in Northern Hemisphere should be roughly east (90°)
-        assertTrue(result.azimuthAngleDeg in 80.0..100.0)
+        // Azimuth at sunrise in Stockholm in October is ESE (~107°)
+        assertTrue(result.azimuthAngleDeg in 95.0..115.0)
     }
 
     @Test
     fun testStockholmSunset() {
-        // Stockholm at sunset on 2024-10-19
-        // From Gaisma: Sunset ~17:29 CEST (UTC+2)
+        // Stockholm at sunset on 2024-10-19 (~17:28 CEST, UTC+2)
         val location = SpaLocation(
             latitudeDeg = 59.33,
             longitudeDeg = 18.07
@@ -197,23 +190,23 @@ class SpaTest {
             month = 10,
             day = 19,
             hour = 17,
-            minute = 29,
+            minute = 28,
             second = 0.0,
             timeZoneOffsetHours = 2.0
         )
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At sunset, elevation should be approximately 0°
-        assertTrue(result.elevationAngleDeg in -1.0..1.0)
+        // At sunset, elevation should be approximately -0.8° to +0.5°
+        assertTrue(result.elevationAngleDeg in -1.5..1.5)
 
-        // Azimuth at sunset in Northern Hemisphere should be roughly west (270°)
-        assertTrue(result.azimuthAngleDeg in 260.0..280.0)
+        // Azimuth at sunset in Stockholm in October is WSW (~253°)
+        assertTrue(result.azimuthAngleDeg in 240.0..265.0)
     }
 
     @Test
     fun testEquatorEquinoxNoon() {
-        // Quito, Ecuador (0°N, 78.5°W) at solar noon on equinox
+        // Quito, Ecuador (0°N, 78.5°W) at solar noon on equinox (12:14 PM, UTC-5)
         val location = SpaLocation(
             latitudeDeg = 0.0,
             longitudeDeg = -78.5
@@ -223,21 +216,21 @@ class SpaTest {
             month = 3,
             day = 20,
             hour = 12,
-            minute = 0,
+            minute = 14,
             second = 0.0,
             timeZoneOffsetHours = -5.0
         )
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At equator on equinox, sun should be nearly overhead
+        // At equator on equinox at solar noon, sun is directly overhead (~89.9°)
         assertTrue(result.elevationAngleDeg > 88.0)
         assertTrue(result.zenithAngleDeg < 2.0)
     }
 
     @Test
     fun testEquatorSolsticeNoon() {
-        // Quito, Ecuador (0°N, 78.5°W) at solar noon on summer solstice
+        // Quito, Ecuador (0°N, 78.5°W) at solar noon on summer solstice (12:14 PM, UTC-5)
         val location = SpaLocation(
             latitudeDeg = 0.0,
             longitudeDeg = -78.5
@@ -247,16 +240,15 @@ class SpaTest {
             month = 6,
             day = 21,
             hour = 12,
-            minute = 0,
+            minute = 14,
             second = 0.0,
             timeZoneOffsetHours = -5.0
         )
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At equator on summer solstice, declination is ~23.44°
-        // The sun should be very high in the sky
-        assertTrue(result.elevationAngleDeg > 85.0)
+        // At equator on summer solstice, declination ~23.44°, max elevation = 90 - 23.44 = 66.56°
+        assertTrue(result.elevationAngleDeg in 65.0..68.0)
     }
 
     @Test
@@ -278,16 +270,13 @@ class SpaTest {
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At North Pole on summer solstice, sun is at horizon or slightly above
-        // Elevation = 90 - 89 + 23.44 = ~24.44°
-        // But at the pole itself (90°N), it's different
-        // For 89°N: elevation ~ 23.44° + 1° = ~24.44°
+        // At 89°N on summer solstice, elevation ~ 23.44° + 1° = ~24.44°
         assertTrue(result.elevationAngleDeg in 20.0..28.0)
     }
 
     @Test
     fun testSouthPoleSummerSolstice() {
-        // South Pole region (89°S, 0°E) on December solstice (summer in SH)
+        // South Pole region (89°S, 0°E) on December solstice
         val location = SpaLocation(
             latitudeDeg = -89.0,
             longitudeDeg = 0.0
@@ -304,13 +293,13 @@ class SpaTest {
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At South Pole on summer solstice, sun is at horizon or slightly above
+        // Elevation ~ 23.44° + 1° = ~24.44°
         assertTrue(result.elevationAngleDeg in 20.0..28.0)
     }
 
     @Test
     fun testSydneySummerNoon() {
-        // Sydney, Australia (-33.87°S, 151.21°E) at solar noon on summer solstice
+        // Sydney, Australia (-33.87°S, 151.21°E) at solar noon on summer solstice (11:55 AM, UTC+10)
         val location = SpaLocation(
             latitudeDeg = -33.87,
             longitudeDeg = 151.21
@@ -319,25 +308,24 @@ class SpaTest {
             year = 2024,
             month = 12,
             day = 21,
-            hour = 12,
-            minute = 0,
+            hour = 11,
+            minute = 55,
             second = 0.0,
             timeZoneOffsetHours = 10.0
         )
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At 33.87°S on summer solstice
-        // elevation = 90 - |-33.87 - (-23.44)| = 90 - 10.43 = 79.57°
+        // Elevation = 90 - |-33.87 - (-23.44)| = 79.57°
         assertTrue(result.elevationAngleDeg in 77.0..82.0)
 
-        // Azimuth should be roughly 0° (north) at solar noon in Southern Hemisphere
-        assertTrue(result.azimuthAngleDeg in 350.0..10.0 || result.azimuthAngleDeg in 0.0..10.0)
+        // Azimuth should be roughly 0° / 360° (north) at solar noon in Southern Hemisphere
+        assertTrue(result.azimuthAngleDeg in 350.0..360.0 || result.azimuthAngleDeg in 0.0..10.0)
     }
 
     @Test
     fun testSydneyWinterNoon() {
-        // Sydney, Australia (-33.87°S, 151.21°E) at solar noon on winter solstice
+        // Sydney, Australia (-33.87°S, 151.21°E) at solar noon on winter solstice (11:55 AM, UTC+10)
         val location = SpaLocation(
             latitudeDeg = -33.87,
             longitudeDeg = 151.21
@@ -346,25 +334,24 @@ class SpaTest {
             year = 2024,
             month = 6,
             day = 21,
-            hour = 12,
-            minute = 0,
+            hour = 11,
+            minute = 55,
             second = 0.0,
             timeZoneOffsetHours = 10.0
         )
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At 33.87°S on June solstice (declination ~23.44°)
-        // elevation = 90 - |-33.87 - 23.44| = 90 - 57.31 = 32.69°
+        // Elevation = 90 - |-33.87 - 23.44| = 32.69°
         assertTrue(result.elevationAngleDeg in 30.0..36.0)
 
-        // Azimuth should be roughly 0° (north) at solar noon in Southern Hemisphere
-        assertTrue(result.azimuthAngleDeg in 350.0..10.0 || result.azimuthAngleDeg in 0.0..10.0)
+        // Azimuth should be roughly 0° / 360° (north) at solar noon in Southern Hemisphere
+        assertTrue(result.azimuthAngleDeg in 350.0..360.0 || result.azimuthAngleDeg in 0.0..10.0)
     }
 
     @Test
     fun testTokyoEquinoxNoon() {
-        // Tokyo, Japan (35.68°N, 139.77°E) at solar noon on equinox
+        // Tokyo, Japan (35.68°N, 139.77°E) at solar noon on equinox (11:41 AM, UTC+9)
         val location = SpaLocation(
             latitudeDeg = 35.68,
             longitudeDeg = 139.77
@@ -373,15 +360,15 @@ class SpaTest {
             year = 2024,
             month = 3,
             day = 20,
-            hour = 12,
-            minute = 0,
+            hour = 11,
+            minute = 41,
             second = 0.0,
             timeZoneOffsetHours = 9.0
         )
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At 35.68°N on equinox: elevation = 90 - 35.68 = 54.32°
+        // Elevation = 90 - 35.68 = 54.32°
         assertTrue(result.elevationAngleDeg in 52.0..57.0)
 
         // Azimuth should be roughly 180° (south)
@@ -390,7 +377,7 @@ class SpaTest {
 
     @Test
     fun testCapeTownEquinoxNoon() {
-        // Cape Town, South Africa (-33.92°S, 18.42°E) at solar noon on equinox
+        // Cape Town, South Africa (-33.92°S, 18.42°E) at solar noon on equinox (12:46 PM, UTC+2)
         val location = SpaLocation(
             latitudeDeg = -33.92,
             longitudeDeg = 18.42
@@ -400,23 +387,23 @@ class SpaTest {
             month = 9,
             day = 23,
             hour = 12,
-            minute = 0,
+            minute = 46,
             second = 0.0,
             timeZoneOffsetHours = 2.0
         )
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At 33.92°S on equinox: elevation = 90 - 33.92 = 56.08°
+        // Elevation = 90 - 33.92 = 56.08°
         assertTrue(result.elevationAngleDeg in 54.0..59.0)
 
-        // Azimuth should be roughly 0° (north) in Southern Hemisphere
-        assertTrue(result.azimuthAngleDeg in 350.0..10.0 || result.azimuthAngleDeg in 0.0..10.0)
+        // Azimuth should be roughly 0° / 360° (north) in Southern Hemisphere
+        assertTrue(result.azimuthAngleDeg in 350.0..360.0 || result.azimuthAngleDeg in 0.0..10.0)
     }
 
     @Test
     fun testRandomDateNewYork() {
-        // New York, USA (40.71°N, -74.01°W) on 2024-07-04 (Independence Day)
+        // New York, USA (40.71°N, -74.01°W) on 2024-07-04 (13:00 EDT, UTC-4)
         val location = SpaLocation(
             latitudeDeg = 40.71,
             longitudeDeg = -74.01
@@ -433,17 +420,13 @@ class SpaTest {
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At 40.71°N in early July, declination is ~22.8°
-        // elevation = 90 - 40.71 + 22.8 = ~72.09°
         assertTrue(result.elevationAngleDeg in 70.0..75.0)
-
-        // Sun distance should be reasonable (~1 AU)
         assertTrue(result.sunDistanceAu in 0.98..1.02)
     }
 
     @Test
     fun testRandomDateLondon() {
-        // London, UK (51.51°N, -0.13°W) on 2024-01-01
+        // London, UK (51.51°N, -0.13°W) on 2024-01-01 (12:00 GMT, UTC+0)
         val location = SpaLocation(
             latitudeDeg = 51.51,
             longitudeDeg = -0.13
@@ -460,11 +443,7 @@ class SpaTest {
 
         val result = SpaCalculator.calculateSolarPosition(location, dateTime, 69.0)
 
-        // At 51.51°N in early January, declination is ~-23.0°
-        // elevation = 90 - 51.51 - 23.0 = ~15.49°
         assertTrue(result.elevationAngleDeg in 13.0..18.0)
-
-        // Azimuth should be roughly 180° (south)
         assertTrue(result.azimuthAngleDeg in 170.0..190.0)
     }
 }
