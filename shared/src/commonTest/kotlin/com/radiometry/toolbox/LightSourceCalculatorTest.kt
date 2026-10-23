@@ -113,4 +113,66 @@ class LightSourceCalculatorTest {
         assertEquals(0.0, calculateIrradiance(1.0, 0.0, 100.0, false, 0.9))
         assertEquals(0.0, calculateIrradiance(1.0, 0.1, -10.0, false, 0.9))
     }
+
+    @Test
+    fun testRadiantIntensityFromPowerAndDivergence() {
+        val intensity = calculateRadiantIntensity(100.0, 0.2)
+        assertEquals(500.0, intensity, 1e-6)
+    }
+
+    @Test
+    fun testIrradianceFromIntensityAndRange() {
+        val irradiance = calculateIrradianceFromIntensity(
+            radiantIntensity = 500.0,
+            distanceMeters = 100.0,
+            useAtmosphericCompensation = false,
+            transmissionAt1000m = 0.9
+        )
+        assertEquals(0.05, irradiance, 1e-6)
+    }
+
+    @Test
+    fun testIntensityFromIrradianceAndRange() {
+        val intensity = calculateIntensityFromIrradiance(
+            irradianceWPerM2 = 0.05,
+            distanceMeters = 100.0,
+            useAtmosphericCompensation = false,
+            transmissionAt1000m = 0.9
+        )
+        assertEquals(500.0, intensity, 1e-6)
+    }
+
+    @Test
+    fun testIntensityFromIrradianceWithAtmosphericCompensation() {
+        val intensity = calculateIntensityFromIrradiance(
+            irradianceWPerM2 = 0.00016,
+            distanceMeters = 2000.0,
+            useAtmosphericCompensation = true,
+            transmissionAt1000m = 0.8
+        )
+        assertEquals(1000.0, intensity, 1e-6)
+    }
+
+    @Test
+    fun testIrradianceAndIntensityReversibility() {
+        val initialIntensity = 1250.0
+        val distance = 1500.0
+        val t1000 = 0.85
+
+        val calculatedIrradiance = calculateIrradianceFromIntensity(
+            radiantIntensity = initialIntensity,
+            distanceMeters = distance,
+            useAtmosphericCompensation = true,
+            transmissionAt1000m = t1000
+        )
+
+        val reconstructedIntensity = calculateIntensityFromIrradiance(
+            irradianceWPerM2 = calculatedIrradiance,
+            distanceMeters = distance,
+            useAtmosphericCompensation = true,
+            transmissionAt1000m = t1000
+        )
+
+        assertEquals(initialIntensity, reconstructedIntensity, 1e-6)
+    }
 }

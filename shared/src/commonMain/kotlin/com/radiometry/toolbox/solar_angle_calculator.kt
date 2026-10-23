@@ -2,6 +2,7 @@ package com.radiometry.toolbox
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -151,11 +154,154 @@ fun CompassIcon(enabled: Boolean, modifier: Modifier = Modifier) {
 }
 
 @Composable
+fun AdvancedAtmosphereAccordion(
+    altitudeText: String,
+    onAltitudeChange: (String) -> Unit,
+    pressureText: String,
+    onPressureChange: (String) -> Unit,
+    temperatureText: String,
+    onTemperatureChange: (String) -> Unit,
+    onResetToAuto: () -> Unit,
+    sensorPressureMbar: Float?,
+    textFieldColors: TextFieldColors,
+    modifier: Modifier = Modifier
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "ADVANCED ATMOSPHERE & ELEVATION",
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = if (isExpanded) "▲" else "▼",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 10.sp
+                )
+            }
+
+            if (!isExpanded) {
+                val altVal = altitudeText.toDoubleOrNull() ?: 0.0
+                val pressVal = pressureText.toDoubleOrNull() ?: 1013.25
+                val tempVal = temperatureText.toDoubleOrNull() ?: 15.0
+                Text(
+                    text = "${formatNumbers(altVal)}m | ${formatNumbers(pressVal)}mbar | ${formatNumbers(tempVal)}°C",
+                    color = Color(0xFF81C784),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        if (isExpanded) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OutlinedTextField(
+                        value = altitudeText,
+                        onValueChange = onAltitudeChange,
+                        label = { Text("Altitude (m)", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        colors = textFieldColors
+                    )
+
+                    OutlinedTextField(
+                        value = pressureText,
+                        onValueChange = onPressureChange,
+                        label = { Text("Pressure (mbar)", fontSize = 11.sp) },
+                        modifier = Modifier.weight(1.1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        colors = textFieldColors
+                    )
+
+                    OutlinedTextField(
+                        value = temperatureText,
+                        onValueChange = onTemperatureChange,
+                        label = { Text("Temp (°C)", fontSize = 11.sp) },
+                        modifier = Modifier.weight(0.9f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        colors = textFieldColors
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (sensorPressureMbar != null) {
+                        Text(
+                            text = "Barometer: ${formatNumbers(sensorPressureMbar.toDouble())} mbar (Live Sensor)",
+                            color = Color(0xFFFFD54F),
+                            fontSize = 11.sp
+                        )
+                    } else {
+                        Text(
+                            text = "Barometer: ISA Atmosphere Model",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    TextButton(
+                        onClick = onResetToAuto,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text("Reset to Auto", color = Color(0xFF90CAF9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SolarAngleVisualization(settingsManager: SettingsManager) {
     val locationProvider = rememberLocationProvider()
     val compassSensor = rememberCompassSensor()
     val mapLauncher = rememberMapLauncher()
     val clipboardManager = rememberClipboardManager()
+    val pressureSensor = rememberAmbientPressureSensor()
+
+    var liveSensorPressure by remember { mutableStateOf<Float?>(null) }
+
+    DisposableEffect(Unit) {
+        if (pressureSensor.isSensorAvailable()) {
+            pressureSensor.startListening { rawPressure ->
+                liveSensorPressure = rawPressure
+            }
+        }
+        onDispose {
+            pressureSensor.stopListening()
+        }
+    }
 
     val systemNow = remember { getSystemDateTime() }
 
@@ -164,6 +310,9 @@ fun SolarAngleVisualization(settingsManager: SettingsManager) {
     }
     var longitudeText by remember {
         mutableStateOf(settingsManager.getString("key_solar_longitude", "-105.1786"))
+    }
+    var altitudeText by remember {
+        mutableStateOf(settingsManager.getString("key_solar_altitude", "0.0"))
     }
 
     var yearText by remember {
@@ -184,6 +333,41 @@ fun SolarAngleVisualization(settingsManager: SettingsManager) {
     var tzOffsetText by remember {
         val initialTz = if (systemNow.timeZoneOffsetHours >= 0) "+${systemNow.timeZoneOffsetHours}" else systemNow.timeZoneOffsetHours.toString()
         mutableStateOf(settingsManager.getString("key_solar_tz_offset", initialTz))
+    }
+
+    var pressureText by remember {
+        val saved = settingsManager.getString("key_solar_pressure", "")
+        mutableStateOf(saved.ifEmpty {
+            val alt = altitudeText.toDoubleOrNull() ?: 0.0
+            val p = liveSensorPressure?.toDouble() ?: estimatePressureFromAltitude(alt)
+            formatNumbers(p)
+        })
+    }
+    var temperatureText by remember {
+        val saved = settingsManager.getString("key_solar_temperature", "")
+        mutableStateOf(saved.ifEmpty {
+            val alt = altitudeText.toDoubleOrNull() ?: 0.0
+            val lat = latitudeText.toDoubleOrNull() ?: 0.0
+            val mo = monthText.toIntOrNull() ?: 6
+            val t = estimateTemperatureFromAltitudeAndLatitude(alt, lat, mo)
+            formatNumbers(t)
+        })
+    }
+
+    val autoRecalculateAtmosphere: (Double) -> Unit = { newAlt ->
+        val p = liveSensorPressure?.toDouble() ?: estimatePressureFromAltitude(newAlt)
+        val lat = latitudeText.toDoubleOrNull() ?: 0.0
+        val mo = monthText.toIntOrNull() ?: 6
+        val t = estimateTemperatureFromAltitudeAndLatitude(newAlt, lat, mo)
+
+        val pStr = formatNumbers(p)
+        val tStr = formatNumbers(t)
+
+        pressureText = pStr
+        temperatureText = tStr
+
+        settingsManager.putString("key_solar_pressure", pStr)
+        settingsManager.putString("key_solar_temperature", tStr)
     }
 
     var compassEnabled by remember { mutableStateOf(false) }
@@ -215,6 +399,9 @@ fun SolarAngleVisualization(settingsManager: SettingsManager) {
     val hr = hourText.toIntOrNull()
     val mn = minuteText.toIntOrNull()
     val tz = tzOffsetText.replace("+", "").toDoubleOrNull()
+    val alt = altitudeText.toDoubleOrNull() ?: 0.0
+    val press = pressureText.toDoubleOrNull() ?: estimatePressureFromAltitude(alt)
+    val temp = temperatureText.toDoubleOrNull() ?: 15.0
 
     val spaResult: SpaResult? = if (lat != null && lon != null && yr != null && mo != null && dy != null && hr != null && mn != null && tz != null) {
         runCatching {
@@ -227,7 +414,10 @@ fun SolarAngleVisualization(settingsManager: SettingsManager) {
                 hour = hr,
                 minute = mn,
                 second = 0.0,
-                timeZoneOffsetHours = tz
+                timeZoneOffsetHours = tz,
+                pressureMbar = press,
+                temperatureC = temp,
+                elevationMeters = alt
             )
         }.getOrNull()
     } else {
@@ -371,11 +561,18 @@ fun SolarAngleVisualization(settingsManager: SettingsManager) {
                         if (coords != null) {
                             val latStr = formatNumbers(coords.latitude)
                             val lonStr = formatNumbers(coords.longitude)
+                            val altStr = formatNumbers(coords.altitudeMeters)
+
                             latitudeText = latStr
                             longitudeText = lonStr
+                            altitudeText = altStr
+
                             settingsManager.putString("key_solar_latitude", latStr)
                             settingsManager.putString("key_solar_longitude", lonStr)
-                            locationStatusMessage = "Location updated!"
+                            settingsManager.putString("key_solar_altitude", altStr)
+
+                            autoRecalculateAtmosphere(coords.altitudeMeters)
+                            locationStatusMessage = "Location & Elevation updated!"
                         } else {
                             locationStatusMessage = "Could not fetch GPS. Check permissions."
                         }
@@ -438,6 +635,32 @@ fun SolarAngleVisualization(settingsManager: SettingsManager) {
                 ClipboardIcon(modifier = Modifier.size(20.dp))
             }
         }
+
+        AdvancedAtmosphereAccordion(
+            altitudeText = altitudeText,
+            onAltitudeChange = {
+                altitudeText = it
+                settingsManager.putString("key_solar_altitude", it)
+                val newAlt = it.toDoubleOrNull() ?: 0.0
+                autoRecalculateAtmosphere(newAlt)
+            },
+            pressureText = pressureText,
+            onPressureChange = {
+                pressureText = it
+                settingsManager.putString("key_solar_pressure", it)
+            },
+            temperatureText = temperatureText,
+            onTemperatureChange = {
+                temperatureText = it
+                settingsManager.putString("key_solar_temperature", it)
+            },
+            onResetToAuto = {
+                val altVal = altitudeText.toDoubleOrNull() ?: 0.0
+                autoRecalculateAtmosphere(altVal)
+            },
+            sensorPressureMbar = liveSensorPressure,
+            textFieldColors = textFieldColors
+        )
 
         if (locationStatusMessage != null) {
             Text(

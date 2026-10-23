@@ -436,4 +436,158 @@ class SolarEventCalculatorTest {
         assertNotNull(duration)
         assertTrue(duration in 42000L..44400L)
     }
+
+    @Test
+    fun testPacificLocationCoordinates38Minus138() {
+        // Lat: 38.0, Lon: -138.0 (Pacific Ocean), Date: 2025-03-10
+        val resultCorr = SolarEventCalculator.calculateSolarEvents(
+            latitudeDeg = 38.0,
+            longitudeDeg = -138.0,
+            year = 2025,
+            month = 3,
+            day = 10,
+            timeZoneOffsetHours = -9.0
+        )
+
+        val rise = resultCorr.sunrise
+        val set = resultCorr.sunset
+        assertTrue(rise is SolarEventTime.Occurred)
+        assertTrue(set is SolarEventTime.Occurred)
+        assertEquals(6, rise.hour)
+        assertEquals(18, set.hour)
+
+        // Test with offset far from solar noon (e.g. UTC+1)
+        val resultMismatchedTz = SolarEventCalculator.calculateSolarEvents(
+            latitudeDeg = 38.0,
+            longitudeDeg = -138.0,
+            year = 2025,
+            month = 3,
+            day = 10,
+            timeZoneOffsetHours = 1.0
+        )
+
+        assertTrue(resultMismatchedTz.sunrise is SolarEventTime.Occurred)
+        assertTrue(resultMismatchedTz.sunset is SolarEventTime.Occurred)
+    }
+
+    @Test
+    fun testCrossingRefinementAccuracy() {
+        val result = SolarEventCalculator.calculateSolarEvents(
+            latitudeDeg = 39.742476,
+            longitudeDeg = -105.1786,
+            year = 2024,
+            month = 3,
+            day = 20,
+            timeZoneOffsetHours = -6.0
+        )
+
+        val rise = result.sunrise as SolarEventTime.Occurred
+        val set = result.sunset as SolarEventTime.Occurred
+
+        val riseDt = SpaDateTime(2024, 3, 20, rise.hour, rise.minute, rise.second.toDouble(), -6.0)
+        val riseSpa = SpaCalculator.calculateSolarPosition(SpaLocation(39.742476, -105.1786), riseDt)
+        assertEquals(-0.833333, riseSpa.elevationAngleDeg, 0.05)
+
+        val setDt = SpaDateTime(2024, 3, 20, set.hour, set.minute, set.second.toDouble(), -6.0)
+        val setSpa = SpaCalculator.calculateSolarPosition(SpaLocation(39.742476, -105.1786), setDt)
+        assertEquals(-0.833333, setSpa.elevationAngleDeg, 0.05)
+    }
+
+    @Test
+    fun testElevationExtendsDaylightDuration() {
+        // Golden, CO on Equinox (2024-03-20)
+        val lat = 39.742476
+        val lon = -105.1786
+        val yr = 2024
+        val mo = 3
+        val dy = 20
+        val tz = -6.0
+
+        val seaLevelResult = SolarEventCalculator.calculateSolarEvents(
+            latitudeDeg = lat,
+            longitudeDeg = lon,
+            year = yr,
+            month = mo,
+            day = dy,
+            timeZoneOffsetHours = tz,
+            elevationMeters = 0.0
+        )
+
+        val highAltResult = SolarEventCalculator.calculateSolarEvents(
+            latitudeDeg = lat,
+            longitudeDeg = lon,
+            year = yr,
+            month = mo,
+            day = dy,
+            timeZoneOffsetHours = tz,
+            elevationMeters = 3000.0
+        )
+
+        val seaLevelRise = seaLevelResult.sunrise as SolarEventTime.Occurred
+        val seaLevelSet = seaLevelResult.sunset as SolarEventTime.Occurred
+
+        val highAltRise = highAltResult.sunrise as SolarEventTime.Occurred
+        val highAltSet = highAltResult.sunset as SolarEventTime.Occurred
+
+        val seaLevelRiseSec = seaLevelRise.hour * 3600 + seaLevelRise.minute * 60 + seaLevelRise.second
+        val highAltRiseSec = highAltRise.hour * 3600 + highAltRise.minute * 60 + highAltRise.second
+
+        val seaLevelSetSec = seaLevelSet.hour * 3600 + seaLevelSet.minute * 60 + seaLevelSet.second
+        val highAltSetSec = highAltSet.hour * 3600 + highAltSet.minute * 60 + highAltSet.second
+
+        // Higher altitude should make sunrise happen earlier (fewer seconds from midnight)
+        assertTrue(highAltRiseSec < seaLevelRiseSec, "Sunrise at 3000m ($highAltRiseSec) should be earlier than at 0m ($seaLevelRiseSec)")
+
+        // Higher altitude should make sunset happen later (more seconds from midnight)
+        assertTrue(highAltSetSec > seaLevelSetSec, "Sunset at 3000m ($highAltSetSec) should be later than at 0m ($seaLevelSetSec)")
+
+        // Daylight duration at 3000m should be strictly longer than at sea level
+        val seaLevelDuration = seaLevelResult.daylightDurationSeconds!!
+        val highAltDuration = highAltResult.daylightDurationSeconds!!
+        assertTrue(highAltDuration > seaLevelDuration, "Daylight duration at 3000m ($highAltDuration s) should be greater than at 0m ($seaLevelDuration s)")
+
+        // The daylight duration extension should be significant (e.g. > 5 minutes / 300 seconds)
+        val extensionSeconds = highAltDuration - seaLevelDuration
+        assertTrue(extensionSeconds in 300..1200, "Daylight extension ($extensionSeconds s) should be between 5 and 20 minutes for 3000m elevation")
+    }
+
+    @Test
+    fun testAtmosphericPressureTemperatureEffect() {
+        val lat = 39.742476
+        val lon = -105.1786
+        val yr = 2024
+        val mo = 3
+        val dy = 20
+        val tz = -6.0
+
+        // Higher pressure causes stronger atmospheric refraction, making sun visible earlier/longer
+        val lowPressureResult = SolarEventCalculator.calculateSolarEvents(
+            latitudeDeg = lat,
+            longitudeDeg = lon,
+            year = yr,
+            month = mo,
+            day = dy,
+            timeZoneOffsetHours = tz,
+            pressureMbar = 700.0,
+            temperatureC = 15.0,
+            elevationMeters = 0.0
+        )
+
+        val highPressureResult = SolarEventCalculator.calculateSolarEvents(
+            latitudeDeg = lat,
+            longitudeDeg = lon,
+            year = yr,
+            month = mo,
+            day = dy,
+            timeZoneOffsetHours = tz,
+            pressureMbar = 1050.0,
+            temperatureC = 15.0,
+            elevationMeters = 0.0
+        )
+
+        assertTrue(
+            highPressureResult.daylightDurationSeconds!! > lowPressureResult.daylightDurationSeconds!!,
+            "Higher pressure should increase atmospheric refraction and extend daylight duration"
+        )
+    }
 }

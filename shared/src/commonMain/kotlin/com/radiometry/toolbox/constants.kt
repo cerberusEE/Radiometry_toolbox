@@ -2,11 +2,39 @@ package com.radiometry.toolbox
 
 import androidx.compose.ui.graphics.Color
 
-data class Tool(
-    val name: String,
+enum class ToolType(
+    val title: String,
     val description: String,
-    val color: Color,
-)
+    val color: Color
+) {
+    BLACKBODY_RADIANCE("Blackbody Radiance", "Calculate Planck spectral and band radiance", Color(0xFF0A2246)),
+    BLACKBODY_CONTRAST("Blackbody Contrast", "Compare radiance contrast between target temperatures", Color(0xFF500A1D)),
+    TEMPERATURE_UNITS("Temperature Units", "Convert temperature units and view blackbody color", Color(0xFF002C27)),
+    SOURCE_IRRADIANCE("Source Irradiance", "Calculate irradiance at distance from a beam source", Color(0xFF3B0B4C)),
+    IFOV_GSD("IFOV & GSD", "Calculate optics IFOV and Ground Sampling Distance", Color(0xFF421C00)),
+    SOLAR_POSITION("Solar Position", "Calculate sun elevation, azimuth, and compass orientation", Color(0xFF481400)),
+    SUN_EVENTS("Sun Events", "Sunrise, sunset, twilight, and golden/blue hours", Color(0xFF3E1A00)),
+    LUX_METER("Lux Meter", "Measure real-time illuminance using the ambient light sensor", Color(0xFF082C0C));
+}
+
+data class Tool(
+    val type: ToolType,
+    val name: String = type.title,
+    val description: String = type.description,
+    val color: Color = type.color
+) {
+    constructor(
+        name: String,
+        description: String,
+        color: Color
+    ) : this(
+        type = ToolType.entries.firstOrNull { it.title == name } ?: ToolType.BLACKBODY_RADIANCE,
+        name = name,
+        description = description,
+        color = color
+    )
+}
+
 enum class WavelengthUnit(val symbol: String, val label: String) {
     NANOMETERS("nm", "Nanometers"),
     MICROMETERS("µm", "Micrometers"),
@@ -27,6 +55,7 @@ enum class IfovUnit(val symbol: String, val label: String) {
 }
 
 const val WIEN_DISPLACEMENT_CONSTANT_M = 2.897771955e-3
+const val MAX_RECENT_TOOLS_COUNT = 3
 
 data class FileData(
     val x: DoubleArray,

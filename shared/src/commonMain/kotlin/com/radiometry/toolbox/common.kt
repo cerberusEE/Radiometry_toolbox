@@ -126,18 +126,24 @@ fun calculateRadianceComparison(
     )
 }
 
-fun calculateIrradiance(
+fun calculateRadiantIntensity(
     opticalPower: Double,
     divergenceSr: Double,
-    distance: Double,
+): Double {
+    if (divergenceSr <= 0.0 || opticalPower < 0.0) return 0.0
+    return opticalPower / divergenceSr
+}
+
+fun calculateIrradianceFromIntensity(
+    radiantIntensity: Double,
+    distanceMeters: Double,
     useAtmosphericCompensation: Boolean,
     transmissionAt1000m: Double,
 ): Double {
-    if (divergenceSr <= 0.0 || distance < 0.0) return 0.0
-    val area = divergenceSr * distance * distance
-    if (area <= 0.0) return 0.0
-    val unattenuatedIrradiance = opticalPower / area
-    if (!useAtmosphericCompensation) return unattenuatedIrradiance
+    if (radiantIntensity < 0.0 || distanceMeters < 0.0) return 0.0
+    if (distanceMeters == 0.0) return Double.POSITIVE_INFINITY
+    val unattenuated = radiantIntensity / (distanceMeters * distanceMeters)
+    if (!useAtmosphericCompensation) return unattenuated
 
     val tRef = when {
         transmissionAt1000m <= 0.0 -> 0.0
@@ -147,10 +153,46 @@ fun calculateIrradiance(
     }
 
     if (tRef <= 0.0) return 0.0
-    if (tRef >= 1.0) return unattenuatedIrradiance
+    if (tRef >= 1.0) return unattenuated
 
-    val transmission = tRef.pow(distance / 1000.0)
-    return unattenuatedIrradiance * transmission
+    val transmission = tRef.pow(distanceMeters / 1000.0)
+    return unattenuated * transmission
+}
+
+fun calculateIntensityFromIrradiance(
+    irradianceWPerM2: Double,
+    distanceMeters: Double,
+    useAtmosphericCompensation: Boolean,
+    transmissionAt1000m: Double,
+): Double {
+    if (irradianceWPerM2 < 0.0 || distanceMeters < 0.0) return 0.0
+    val unattenuatedIntensity = irradianceWPerM2 * distanceMeters * distanceMeters
+    if (!useAtmosphericCompensation) return unattenuatedIntensity
+
+    val tRef = when {
+        transmissionAt1000m <= 0.0 -> 0.0
+        transmissionAt1000m > 1.0 && transmissionAt1000m <= 100.0 -> transmissionAt1000m / 100.0
+        transmissionAt1000m > 100.0 -> 1.0
+        else -> transmissionAt1000m
+    }
+
+    if (tRef <= 0.0) return Double.POSITIVE_INFINITY
+    if (tRef >= 1.0) return unattenuatedIntensity
+
+    val transmission = tRef.pow(distanceMeters / 1000.0)
+    if (transmission <= 0.0) return Double.POSITIVE_INFINITY
+    return unattenuatedIntensity / transmission
+}
+
+fun calculateIrradiance(
+    opticalPower: Double,
+    divergenceSr: Double,
+    distance: Double,
+    useAtmosphericCompensation: Boolean,
+    transmissionAt1000m: Double,
+): Double {
+    val intensity = calculateRadiantIntensity(opticalPower, divergenceSr)
+    return calculateIrradianceFromIntensity(intensity, distance, useAtmosphericCompensation, transmissionAt1000m)
 }
 
 fun calculatePeakWavelength(temperatureKelvin: Double, unit: WavelengthUnit): Double? {

@@ -12,7 +12,8 @@ import kotlin.math.tan
 
 data class SpaLocation(
     val latitudeDeg: Double,
-    val longitudeDeg: Double
+    val longitudeDeg: Double,
+    val elevationMeters: Double = 0.0
 ) {
     init {
         require(latitudeDeg in -90.0..90.0) { "Latitude must be between -90 and 90 degrees." }
@@ -93,8 +94,11 @@ object SpaCalculator {
      * @param hour Hour of day (0-23).
      * @param minute Minute of hour (0-59).
      * @param second Second of minute (0.0 to <60.0).
-     * @param timeZoneOffsetHours Offset from UTC in hours (e.g. -5.0 for EST, +2.0 for EET).
-     * @param deltaTSeconds Difference between Terrestrial Time and UT1 (default: 69.0 seconds).
+     * @param timeZoneOffsetHours Offset from UTC in hours.
+     * @param deltaTSeconds Difference between Terrestrial Time and UT1 (default: 69.0s).
+     * @param pressureMbar Ambient pressure in millibars (default: 1013.25 mbar).
+     * @param temperatureC Ambient temperature in °C (default: 15.0°C).
+     * @param elevationMeters Observer elevation above ellipsoid in meters (default: 0.0m).
      * @return [SpaResult] containing topocentric zenith, elevation, azimuth, declination, RA, hour angle, EOT, and distance.
      */
     fun calculateSolarPosition(
@@ -107,26 +111,32 @@ object SpaCalculator {
         minute: Int,
         second: Double = 0.0,
         timeZoneOffsetHours: Double = 0.0,
-        deltaTSeconds: Double = 69.0
+        deltaTSeconds: Double = 69.0,
+        pressureMbar: Double = 1013.25,
+        temperatureC: Double = 15.0,
+        elevationMeters: Double = 0.0
     ): SpaResult {
-        val location = SpaLocation(latitudeDeg, longitudeDeg)
+        val location = SpaLocation(latitudeDeg, longitudeDeg, elevationMeters)
         val dateTime = SpaDateTime(year, month, day, hour, minute, second, timeZoneOffsetHours)
-        return calculateSolarPosition(location, dateTime, deltaTSeconds)
+        return calculateSolarPosition(location, dateTime, deltaTSeconds, pressureMbar, temperatureC)
     }
 
     /**
      * Calculates the solar position and angles using the NREL Solar Position Algorithm (SPA).
-     * Assumes 0 meters ellipsoid elevation.
      *
-     * @param location WGS84 position.
+     * @param location WGS84 position and elevation above ellipsoid.
      * @param dateTime Date and time of day.
      * @param deltaTSeconds Delta T = TT - UT1 in seconds (default: 69.0s).
+     * @param pressureMbar Ambient pressure in millibars (default: 1013.25 mbar).
+     * @param temperatureC Ambient temperature in °C (default: 15.0°C).
      * @return [SpaResult] containing solar zenith, elevation, azimuth, declination, right ascension, local hour angle, EOT, and distance.
      */
     fun calculateSolarPosition(
         location: SpaLocation,
         dateTime: SpaDateTime,
-        deltaTSeconds: Double = 69.0
+        deltaTSeconds: Double = 69.0,
+        pressureMbar: Double = 1013.25,
+        temperatureC: Double = 15.0
     ): SpaResult {
         val ut = dateTime.hour + (dateTime.minute / 60.0) + (dateTime.second / 3600.0) - dateTime.timeZoneOffsetHours
 
@@ -225,8 +235,8 @@ object SpaCalculator {
 
         val phiRad = location.latitudeDeg.toRadians()
         val uRad = atan(0.99664719 * tan(phiRad))
-        val xRad = 0.99664719 * sin(uRad)
-        val yRad = cos(uRad)
+        val xRad = 0.99664719 * sin(uRad) + (location.elevationMeters / 6378137.0) * sin(phiRad)
+        val yRad = cos(uRad) + (location.elevationMeters / 6378137.0) * cos(phiRad)
 
         val xiRad = (8.794100 / (3600.0 * rAu)).toRadians()
 
@@ -240,10 +250,8 @@ object SpaCalculator {
         val e0Deg = e0Rad.toDegrees()
 
         val deltaEDeg = if (e0Deg >= -0.56) {
-            val pressureMbar = 1013.25
-            val tempC = 15.0
             val arg = e0Deg + (10.3 / (e0Deg + 5.11))
-            val deltaEArcmin = (pressureMbar / 1010.0) * (283.0 / (273.0 + tempC)) * (1.02 / tan(arg.toRadians()))
+            val deltaEArcmin = (pressureMbar / 1010.0) * (283.0 / (273.0 + temperatureC)) * (1.02 / tan(arg.toRadians()))
             deltaEArcmin / 60.0
         } else {
             0.0

@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -108,7 +109,6 @@ data class SolarEventsResult(
 
 object SolarEventCalculator {
 
-    private const val OFFICIAL_SUNRISE_SUNSET_ELEVATION = -0.833333
     private const val CIVIL_TWILIGHT_ELEVATION = -6.0
     private const val ASTRONOMICAL_TWILIGHT_ELEVATION = -18.0
     private const val GOLDEN_HOUR_LOW_ELEVATION = -4.0
@@ -142,9 +142,12 @@ object SolarEventCalculator {
         month: Int,
         day: Int,
         timeZoneOffsetHours: Double,
-        deltaTSeconds: Double = 69.0
+        deltaTSeconds: Double = 69.0,
+        pressureMbar: Double = 1013.25,
+        temperatureC: Double = 15.0,
+        elevationMeters: Double = 0.0
     ): SolarEventsResult {
-        val location = SpaLocation(latitudeDeg, longitudeDeg)
+        val location = SpaLocation(latitudeDeg, longitudeDeg, elevationMeters)
 
         fun elevationAt(hourOfDay: Double): Double {
             val clampedHour = hourOfDay.coerceIn(0.0, 24.0)
@@ -162,7 +165,13 @@ object SolarEventCalculator {
                 second = s,
                 timeZoneOffsetHours = timeZoneOffsetHours
             )
-            return SpaCalculator.calculateSolarPosition(location, dateTime, deltaTSeconds).elevationAngleDeg
+            return SpaCalculator.calculateSolarPosition(
+                location = location,
+                dateTime = dateTime,
+                deltaTSeconds = deltaTSeconds,
+                pressureMbar = pressureMbar,
+                temperatureC = temperatureC
+            ).elevationAngleDeg
         }
 
         val sampleCount = 144
@@ -206,7 +215,20 @@ object SolarEventCalculator {
             cNoon = bNoon - goldenRatio * (bNoon - aNoon)
             dNoon = aNoon + goldenRatio * (bNoon - aNoon)
         }
-        val tNoon = (aNoon + bNoon) / 2.0
+        var tNoon = (aNoon + bNoon) / 2.0
+
+        // Parabolic 3-point peak refinement for solar noon
+        val stepH = 0.0001
+        val e1 = elevationAt(tNoon - stepH)
+        val e2 = elevationAt(tNoon)
+        val e3 = elevationAt(tNoon + stepH)
+        val denom = 2.0 * e2 - e1 - e3
+        if (denom > 1e-12) {
+            val tPeak = tNoon + (stepH / 2.0) * (e1 - e3) / denom
+            if (tPeak in (tNoon - stepH)..(tNoon + stepH)) {
+                tNoon = tPeak
+            }
+        }
 
         val noonResult = run {
             val h = tNoon.toInt().coerceIn(0, 23)
@@ -222,110 +244,182 @@ object SolarEventCalculator {
             )
         }
 
-        val noonElevation = noonResult.second
+        // Pass 2: Brent's Method Root Refinement for target elevation crossing
+        fun refineCrossing(
+            targetElev: Double,
+            low: Double,
+            high: Double
+        ): Double {
+            var a = low
+            var b = high
+            var fa = elevationAt(a) - targetElev
+            var fb = elevationAt(b) - targetElev
+
+            if (kotlin.math.abs(fa) < 1e-9) return a
+            if (kotlin.math.abs(fb) < 1e-9) return b
+
+            var c = a
+            var fc = fa
+            var d = b - a
+            var e = d
+
+            repeat(30) {
+                if (kotlin.math.abs(fb) < 1e-9 || kotlin.math.abs(b - a) < 1e-8) {
+                    return b
+                }
+
+                if ((fa > 0.0 && fb > 0.0) || (fa < 0.0 && fb < 0.0)) {
+                    a = c
+                    fa = fc
+                    d = b - a
+                    e = d
+                }
+
+                if (kotlin.math.abs(fa) < kotlin.math.abs(fb)) {
+                    c = b; b = a; a = c
+                    fc = fb; fb = fa; fa = fc
+                }
+
+                val tol1 = 2.0 * 1e-12 * kotlin.math.abs(b) + 0.5 * 1e-8
+                val xm = 0.5 * (a - b)
+
+                if (kotlin.math.abs(xm) <= tol1 || kotlin.math.abs(fb) <= 1e-9) {
+                    return b
+                }
+
+                if (kotlin.math.abs(e) >= tol1 && kotlin.math.abs(fc) > kotlin.math.abs(fb)) {
+                    val s = fb / fc
+                    val p: Double
+                    val q: Double
+                    if (a == c) {
+                        p = 2.0 * xm * s
+                        q = 1.0 - s
+                    } else {
+                        val q0 = fc / fa
+                        val r = fb / fa
+                        p = s * (2.0 * xm * q0 * (q0 - r) - (b - c) * (r - 1.0))
+                        q = (q0 - 1.0) * (r - 1.0) * (s - 1.0)
+                    }
+                    var p1 = p
+                    var q1 = q
+                    if (p1 > 0.0) q1 = -q1
+                    p1 = kotlin.math.abs(p1)
+
+                    val min1 = 3.0 * xm * q1 - kotlin.math.abs(tol1 * q1)
+                    val min2 = kotlin.math.abs(e * q1)
+
+                    if (2.0 * p1 < if (min1 < min2) min1 else min2) {
+                        e = d
+                        d = p1 / q1
+                    } else {
+                        d = xm
+                        e = d
+                    }
+                } else {
+                    d = xm
+                    e = d
+                }
+
+                c = b
+                fc = fb
+
+                if (kotlin.math.abs(d) > tol1) {
+                    b += d
+                } else {
+                    b += if (xm > 0.0) tol1 else -tol1
+                }
+                fb = elevationAt(b) - targetElev
+            }
+            return b
+        }
 
         fun findMorningCrossing(targetElev: Double): SolarEventTime {
-            if (noonElevation < targetElev) return SolarEventTime.AlwaysBelow
+            if (maxElev < targetElev) return SolarEventTime.AlwaysBelow
             if (minElev > targetElev) return SolarEventTime.AlwaysAbove
 
-            var bracketStart = -1.0
-            var bracketEnd = -1.0
-            for (i in 0 until maxElevIndex) {
-                if (elevations[i] <= targetElev && elevations[i + 1] >= targetElev) {
-                    bracketStart = times[i]
-                    bracketEnd = times[i + 1]
-                    break
+            for (i in 0 until sampleCount) {
+                if (elevations[i] <= targetElev && elevations[i + 1] > targetElev) {
+                    val tCross = refineCrossing(targetElev, times[i], times[i + 1])
+                    val h = tCross.toInt().coerceIn(0, 23)
+                    val remM = (tCross - h) * 60.0
+                    val m = remM.toInt().coerceIn(0, 59)
+                    val s = (remM - m) * 60.0
+                    return createOccurredTime(h, m, s)
                 }
             }
 
-            if (bracketStart < 0.0) {
-                if (elevations[0] > targetElev) {
-                    return SolarEventTime.AlwaysAbove
-                }
-                return SolarEventTime.AlwaysBelow
+            if (elevations[0] > targetElev) {
+                return SolarEventTime.AlwaysAbove
             }
-
-            var low = bracketStart
-            var high = bracketEnd
-            repeat(20) {
-                val mid = (low + high) / 2.0
-                if (elevationAt(mid) < targetElev) {
-                    low = mid
-                } else {
-                    high = mid
-                }
-            }
-            val tCross = (low + high) / 2.0
-            val h = tCross.toInt().coerceIn(0, 23)
-            val remM = (tCross - h) * 60.0
-            val m = remM.toInt().coerceIn(0, 59)
-            val s = (remM - m) * 60.0
-            return createOccurredTime(h, m, s)
+            return SolarEventTime.AlwaysBelow
         }
 
         fun findEveningCrossing(targetElev: Double): SolarEventTime {
-            if (noonElevation < targetElev) return SolarEventTime.AlwaysBelow
+            if (maxElev < targetElev) return SolarEventTime.AlwaysBelow
             if (minElev > targetElev) return SolarEventTime.AlwaysAbove
 
-            var bracketStart = -1.0
-            var bracketEnd = -1.0
-            for (i in maxElevIndex until sampleCount) {
-                if (elevations[i] >= targetElev && elevations[i + 1] <= targetElev) {
-                    bracketStart = times[i]
-                    bracketEnd = times[i + 1]
-                    break
+            for (i in 0 until sampleCount) {
+                if (elevations[i] >= targetElev && elevations[i + 1] < targetElev) {
+                    val tCross = refineCrossing(targetElev, times[i], times[i + 1])
+                    val h = tCross.toInt().coerceIn(0, 23)
+                    val remM = (tCross - h) * 60.0
+                    val m = remM.toInt().coerceIn(0, 59)
+                    val s = (remM - m) * 60.0
+                    return createOccurredTime(h, m, s)
                 }
             }
 
-            if (bracketStart < 0.0) {
-                if (elevations[sampleCount] > targetElev) {
-                    return SolarEventTime.AlwaysAbove
-                }
-                return SolarEventTime.AlwaysBelow
+            if (elevations[sampleCount] > targetElev) {
+                return SolarEventTime.AlwaysAbove
             }
-
-            var low = bracketStart
-            var high = bracketEnd
-            repeat(20) {
-                val mid = (low + high) / 2.0
-                if (elevationAt(mid) > targetElev) {
-                    low = mid
-                } else {
-                    high = mid
-                }
-            }
-            val tCross = (low + high) / 2.0
-            val h = tCross.toInt().coerceIn(0, 23)
-            val remM = (tCross - h) * 60.0
-            val m = remM.toInt().coerceIn(0, 59)
-            val s = (remM - m) * 60.0
-            return createOccurredTime(h, m, s)
+            return SolarEventTime.AlwaysBelow
         }
 
-        val sunrise = findMorningCrossing(OFFICIAL_SUNRISE_SUNSET_ELEVATION)
-        val sunset = findEveningCrossing(OFFICIAL_SUNRISE_SUNSET_ELEVATION)
+        val horizonDipDeg = if (elevationMeters > 0.0) {
+            (1.76 / 60.0) * sqrt(elevationMeters)
+        } else {
+            0.0
+        }
 
-        val civilSunrise = findMorningCrossing(CIVIL_TWILIGHT_ELEVATION)
-        val civilSunset = findEveningCrossing(CIVIL_TWILIGHT_ELEVATION)
+        val safePressure = pressureMbar.coerceAtLeast(0.0)
+        val safeTempK = (temperatureC + 273.15).coerceAtLeast(1.0)
+        val horizonRefractionDeg = (34.0 / 60.0) * (safePressure / 1013.25) * (288.15 / safeTempK)
+        val solarSemidiameterDeg = 16.0 / 60.0
 
-        val astroSunrise = findMorningCrossing(ASTRONOMICAL_TWILIGHT_ELEVATION)
-        val astroSunset = findEveningCrossing(ASTRONOMICAL_TWILIGHT_ELEVATION)
+        val officialSunriseSunsetElevation = -solarSemidiameterDeg - horizonRefractionDeg - horizonDipDeg
+        val civilTwilightElevation = CIVIL_TWILIGHT_ELEVATION - horizonDipDeg
+        val astronomicalTwilightElevation = ASTRONOMICAL_TWILIGHT_ELEVATION - horizonDipDeg
 
-        val goldenLowMorning = findMorningCrossing(GOLDEN_HOUR_LOW_ELEVATION)
-        val goldenHighMorning = findMorningCrossing(GOLDEN_HOUR_HIGH_ELEVATION)
+        val goldenHourLowElevation = GOLDEN_HOUR_LOW_ELEVATION - horizonDipDeg
+        val goldenHourHighElevation = GOLDEN_HOUR_HIGH_ELEVATION - horizonDipDeg
+
+        val blueHourLowElevation = BLUE_HOUR_LOW_ELEVATION - horizonDipDeg
+        val blueHourHighElevation = BLUE_HOUR_HIGH_ELEVATION - horizonDipDeg
+
+        val sunrise = findMorningCrossing(officialSunriseSunsetElevation)
+        val sunset = findEveningCrossing(officialSunriseSunsetElevation)
+
+        val civilSunrise = findMorningCrossing(civilTwilightElevation)
+        val civilSunset = findEveningCrossing(civilTwilightElevation)
+
+        val astroSunrise = findMorningCrossing(astronomicalTwilightElevation)
+        val astroSunset = findEveningCrossing(astronomicalTwilightElevation)
+
+        val goldenLowMorning = findMorningCrossing(goldenHourLowElevation)
+        val goldenHighMorning = findMorningCrossing(goldenHourHighElevation)
         val morningGoldenHour = SolarTimespan(goldenLowMorning, goldenHighMorning)
 
-        val goldenHighEvening = findEveningCrossing(GOLDEN_HOUR_HIGH_ELEVATION)
-        val goldenLowEvening = findEveningCrossing(GOLDEN_HOUR_LOW_ELEVATION)
+        val goldenHighEvening = findEveningCrossing(goldenHourHighElevation)
+        val goldenLowEvening = findEveningCrossing(goldenHourLowElevation)
         val eveningGoldenHour = SolarTimespan(goldenHighEvening, goldenLowEvening)
 
-        val blueLowMorning = findMorningCrossing(BLUE_HOUR_LOW_ELEVATION)
-        val blueHighMorning = findMorningCrossing(BLUE_HOUR_HIGH_ELEVATION)
+        val blueLowMorning = findMorningCrossing(blueHourLowElevation)
+        val blueHighMorning = findMorningCrossing(blueHourHighElevation)
         val morningBlueHour = SolarTimespan(blueLowMorning, blueHighMorning)
 
-        val blueHighEvening = findEveningCrossing(BLUE_HOUR_HIGH_ELEVATION)
-        val blueLowEvening = findEveningCrossing(BLUE_HOUR_LOW_ELEVATION)
-        val eveningBlueHour = SolarTimespan(blueLowEvening, blueHighEvening)
+        val blueHighEvening = findEveningCrossing(blueHourHighElevation)
+        val blueLowEvening = findEveningCrossing(blueHourLowElevation)
+        val eveningBlueHour = SolarTimespan(blueHighEvening, blueLowEvening)
 
         val daylightDurationSeconds: Long? = when (sunrise) {
             is SolarEventTime.Occurred if sunset is SolarEventTime.Occurred -> {
@@ -397,6 +491,21 @@ fun SolarEventsVisualization(settingsManager: SettingsManager) {
     val locationProvider = rememberLocationProvider()
     val mapLauncher = rememberMapLauncher()
     val clipboardManager = rememberClipboardManager()
+    val pressureSensor = rememberAmbientPressureSensor()
+
+    var liveSensorPressure by remember { mutableStateOf<Float?>(null) }
+
+    DisposableEffect(Unit) {
+        if (pressureSensor.isSensorAvailable()) {
+            pressureSensor.startListening { rawPressure ->
+                liveSensorPressure = rawPressure
+            }
+        }
+        onDispose {
+            pressureSensor.stopListening()
+        }
+    }
+
     val systemNow = remember { getSystemDateTime() }
 
     var latitudeText by remember {
@@ -404,6 +513,9 @@ fun SolarEventsVisualization(settingsManager: SettingsManager) {
     }
     var longitudeText by remember {
         mutableStateOf(settingsManager.getString("key_solar_longitude", "-105.1786"))
+    }
+    var altitudeText by remember {
+        mutableStateOf(settingsManager.getString("key_solar_altitude", "0.0"))
     }
 
     var yearText by remember {
@@ -420,6 +532,41 @@ fun SolarEventsVisualization(settingsManager: SettingsManager) {
         mutableStateOf(settingsManager.getString("key_solar_tz_offset", initialTz))
     }
 
+    var pressureText by remember {
+        val saved = settingsManager.getString("key_solar_pressure", "")
+        mutableStateOf(saved.ifEmpty {
+            val alt = altitudeText.toDoubleOrNull() ?: 0.0
+            val p = liveSensorPressure?.toDouble() ?: estimatePressureFromAltitude(alt)
+            formatNumbers(p)
+        })
+    }
+    var temperatureText by remember {
+        val saved = settingsManager.getString("key_solar_temperature", "")
+        mutableStateOf(saved.ifEmpty {
+            val alt = altitudeText.toDoubleOrNull() ?: 0.0
+            val lat = latitudeText.toDoubleOrNull() ?: 0.0
+            val mo = monthText.toIntOrNull() ?: 6
+            val t = estimateTemperatureFromAltitudeAndLatitude(alt, lat, mo)
+            formatNumbers(t)
+        })
+    }
+
+    val autoRecalculateAtmosphere: (Double) -> Unit = { newAlt ->
+        val p = liveSensorPressure?.toDouble() ?: estimatePressureFromAltitude(newAlt)
+        val lat = latitudeText.toDoubleOrNull() ?: 0.0
+        val mo = monthText.toIntOrNull() ?: 6
+        val t = estimateTemperatureFromAltitudeAndLatitude(newAlt, lat, mo)
+
+        val pStr = formatNumbers(p)
+        val tStr = formatNumbers(t)
+
+        pressureText = pStr
+        temperatureText = tStr
+
+        settingsManager.putString("key_solar_pressure", pStr)
+        settingsManager.putString("key_solar_temperature", tStr)
+    }
+
     var locationStatusMessage by remember { mutableStateOf<String?>(null) }
 
     val lat = latitudeText.toDoubleOrNull()
@@ -428,6 +575,9 @@ fun SolarEventsVisualization(settingsManager: SettingsManager) {
     val mo = monthText.toIntOrNull()
     val dy = dayText.toIntOrNull()
     val tz = tzOffsetText.replace("+", "").toDoubleOrNull()
+    val alt = altitudeText.toDoubleOrNull() ?: 0.0
+    val press = pressureText.toDoubleOrNull() ?: estimatePressureFromAltitude(alt)
+    val temp = temperatureText.toDoubleOrNull() ?: 15.0
 
     val result: SolarEventsResult? = if (lat != null && lon != null && yr != null && mo != null && dy != null && tz != null) {
         runCatching {
@@ -437,7 +587,10 @@ fun SolarEventsVisualization(settingsManager: SettingsManager) {
                 year = yr,
                 month = mo,
                 day = dy,
-                timeZoneOffsetHours = tz
+                timeZoneOffsetHours = tz,
+                pressureMbar = press,
+                temperatureC = temp,
+                elevationMeters = alt
             )
         }.getOrNull()
     } else {
@@ -719,11 +872,18 @@ fun SolarEventsVisualization(settingsManager: SettingsManager) {
                         if (coordinates != null) {
                             val latStr = formatNumbers(coordinates.latitude)
                             val lonStr = formatNumbers(coordinates.longitude)
+                            val altStr = formatNumbers(coordinates.altitudeMeters)
+
                             latitudeText = latStr
                             longitudeText = lonStr
+                            altitudeText = altStr
+
                             settingsManager.putString("key_solar_latitude", latStr)
                             settingsManager.putString("key_solar_longitude", lonStr)
-                            locationStatusMessage = "Location updated!"
+                            settingsManager.putString("key_solar_altitude", altStr)
+
+                            autoRecalculateAtmosphere(coordinates.altitudeMeters)
+                            locationStatusMessage = "Location & Elevation updated!"
                         } else {
                             locationStatusMessage = "Could not fetch GPS. Check permissions."
                         }
@@ -786,6 +946,32 @@ fun SolarEventsVisualization(settingsManager: SettingsManager) {
                 ClipboardIcon(modifier = Modifier.size(20.dp))
             }
         }
+
+        AdvancedAtmosphereAccordion(
+            altitudeText = altitudeText,
+            onAltitudeChange = {
+                altitudeText = it
+                settingsManager.putString("key_solar_altitude", it)
+                val newAlt = it.toDoubleOrNull() ?: 0.0
+                autoRecalculateAtmosphere(newAlt)
+            },
+            pressureText = pressureText,
+            onPressureChange = {
+                pressureText = it
+                settingsManager.putString("key_solar_pressure", it)
+            },
+            temperatureText = temperatureText,
+            onTemperatureChange = {
+                temperatureText = it
+                settingsManager.putString("key_solar_temperature", it)
+            },
+            onResetToAuto = {
+                val altVal = altitudeText.toDoubleOrNull() ?: 0.0
+                autoRecalculateAtmosphere(altVal)
+            },
+            sensorPressureMbar = liveSensorPressure,
+            textFieldColors = textFieldColors
+        )
 
         if (locationStatusMessage != null) {
             Text(

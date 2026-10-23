@@ -40,6 +40,13 @@ fun formatIrradiance(value: Double): String {
     return "$formatted W/m²"
 }
 
+fun formatRadiantIntensity(value: Double): String {
+    if (value.isNaN()) return "Invalid Input"
+    if (value.isInfinite()) return "Inf W/sr"
+    val formatted = formatNumbers(value)
+    return "$formatted W/sr"
+}
+
 fun formatPeakWavelength(temperatureKelvin: Double?, unit: WavelengthUnit): String {
     if (temperatureKelvin == null || temperatureKelvin <= 0.0 || temperatureKelvin.isNaN()) return "Invalid Input"
     val peakVal = calculatePeakWavelength(temperatureKelvin, unit) ?: return "Invalid Input"
