@@ -259,6 +259,32 @@ fun calculatePixelFootprintArea(gsdMeters: Double): Double? {
     return gsdMeters * gsdMeters
 }
 
+fun calculateTotalFovRadians(focalLengthMm: Double, pixelPitchUm: Double, pixelCount: Double): Double? {
+    if (focalLengthMm <= 0.0 || pixelPitchUm <= 0.0 || pixelCount <= 0.0 ||
+        focalLengthMm.isNaN() || pixelPitchUm.isNaN() || pixelCount.isNaN() ||
+        focalLengthMm.isInfinite() || pixelPitchUm.isInfinite() || pixelCount.isInfinite()) return null
+    val focalLengthMeters = focalLengthMm * 1e-3
+    val totalPitchMeters = pixelCount * pixelPitchUm * 1e-6
+    return 2.0 * kotlin.math.atan2(totalPitchMeters / 2.0, focalLengthMeters)
+}
+
+fun calculateObjectRangeMeters(objectSizeMeters: Double, pixelCount: Double, effectiveIfovRad: Double): Double? {
+    if (objectSizeMeters <= 0.0 || pixelCount <= 0.0 || effectiveIfovRad <= 0.0 ||
+        objectSizeMeters.isNaN() || pixelCount.isNaN() || effectiveIfovRad.isNaN() ||
+        objectSizeMeters.isInfinite() || pixelCount.isInfinite() || effectiveIfovRad.isInfinite()) return null
+    val totalAngleRad = pixelCount * effectiveIfovRad
+    return objectSizeMeters / (2.0 * kotlin.math.tan(totalAngleRad / 2.0))
+}
+
+fun calculateObjectRangeFromFocalPitch(objectSizeMeters: Double, focalLengthMm: Double, pixelPitchUm: Double, pixelCount: Double): Double? {
+    if (objectSizeMeters <= 0.0 || focalLengthMm <= 0.0 || pixelPitchUm <= 0.0 || pixelCount <= 0.0 ||
+        objectSizeMeters.isNaN() || focalLengthMm.isNaN() || pixelPitchUm.isNaN() || pixelCount.isNaN() ||
+        objectSizeMeters.isInfinite() || focalLengthMm.isInfinite() || pixelPitchUm.isInfinite() || pixelCount.isInfinite()) return null
+    val focalLengthMeters = focalLengthMm * 1e-3
+    val totalPitchMeters = pixelCount * pixelPitchUm * 1e-6
+    return (objectSizeMeters * focalLengthMeters) / totalPitchMeters
+}
+
 /**
  * Base class for first-order IIR / Exponential Moving Average (EMA) low-pass filters.
  *

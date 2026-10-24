@@ -323,10 +323,10 @@ object SolarEventCalculator {
                 c = b
                 fc = fb
 
-                if (kotlin.math.abs(d) > tol1) {
-                    b += d
+                b += if (kotlin.math.abs(d) > tol1) {
+                    d
                 } else {
-                    b += if (xm > 0.0) tol1 else -tol1
+                    if (xm > 0.0) tol1 else -tol1
                 }
                 fb = elevationAt(b) - targetElev
             }

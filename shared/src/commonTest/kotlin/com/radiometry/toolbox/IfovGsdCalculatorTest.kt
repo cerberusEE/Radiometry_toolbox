@@ -117,4 +117,40 @@ class IfovGsdCalculatorTest {
         assertEquals("Invalid Input", formatGsd(-1.0))
         assertEquals("Invalid Input", formatGsd(Double.NaN))
     }
+
+    @Test
+    fun testTotalFovCalculation() {
+        val focalLengthMm = 50.0
+        val pixelPitchUm = 10.0
+        val pixelCount = 1000.0 // 1000 pixels -> sensor width = 10 mm = 0.01 m
+        val totalFov = calculateTotalFovRadians(focalLengthMm, pixelPitchUm, pixelCount)
+        assertNotNull(totalFov)
+        val expected = 2.0 * kotlin.math.atan(0.1)
+        assertEquals(expected, totalFov, 1e-9)
+    }
+
+    @Test
+    fun testObjectRangeCalculation() {
+        val objectSize = 2.0 // 2 meters wide object
+        val objectPixels = 20.0 // spans 20 pixels
+        val ifovRad = 0.0002 // 0.2 mrad per pixel
+        val range = calculateObjectRangeMeters(objectSize, objectPixels, ifovRad)
+        assertNotNull(range)
+        val expected = 2.0 / (2.0 * kotlin.math.tan(0.004 / 2.0))
+        assertEquals(expected, range, 1e-6)
+
+        val rangeFromPitch = calculateObjectRangeFromFocalPitch(2.0, 50.0, 10.0, 20.0)
+        assertNotNull(rangeFromPitch)
+        assertEquals(500.0, rangeFromPitch, 1e-6)
+    }
+
+    @Test
+    fun testFormattingTotalFovAndRange() {
+        val fovRad = 0.1 // ~5.73 degrees
+        val formattedFov = formatTotalFov(fovRad)
+        assertEquals("5.73°", formattedFov)
+
+        assertEquals("500 m", formatRange(500.0))
+        assertEquals("1.50 km (1500 m)", formatRange(1500.0))
+    }
 }

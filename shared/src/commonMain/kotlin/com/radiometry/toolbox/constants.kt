@@ -22,18 +22,7 @@ data class Tool(
     val name: String = type.title,
     val description: String = type.description,
     val color: Color = type.color
-) {
-    constructor(
-        name: String,
-        description: String,
-        color: Color
-    ) : this(
-        type = ToolType.entries.firstOrNull { it.title == name } ?: ToolType.BLACKBODY_RADIANCE,
-        name = name,
-        description = description,
-        color = color
-    )
-}
+)
 
 enum class WavelengthUnit(val symbol: String, val label: String) {
     NANOMETERS("nm", "Nanometers"),

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlin.math.log10
+import kotlin.time.Duration.Companion.milliseconds
 
 fun getLightEnvironmentCategory(lux: Float): String {
     return when {
@@ -94,7 +95,7 @@ fun AmbientLightVisualization(settingsManager: SettingsManager) {
                     minLux = minOf(minLux ?: filteredLux, filteredLux)
                     maxLux = maxOf(maxLux ?: filteredLux, filteredLux)
                 }
-                delay(30)
+                delay(30.milliseconds)
             }
         }
     }

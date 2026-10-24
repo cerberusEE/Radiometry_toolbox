@@ -97,3 +97,38 @@ fun formatFootprintArea(areaSqMeters: Double): String {
         }
     }
 }
+
+fun formatTotalFov(radians: Double): String {
+    if (radians.isNaN() || radians < 0.0) return "Invalid Input"
+    val deg = radians * (180.0 / kotlin.math.PI)
+    if (deg < 1.0) {
+        val arcmin = deg * 60.0
+        if (arcmin < 1.0) {
+            val arcsec = arcmin * 60.0
+            return "${formatNumbers(arcsec)} arcsec (${formatNumbers(deg)}°)"
+        }
+        return "${formatNumbers(arcmin)} arcmin (${formatNumbers(deg)}°)"
+    }
+    return "${formatNumbers(deg)}°"
+}
+
+fun formatRange(meters: Double): String {
+    if (meters.isNaN() || meters < 0.0) return "Invalid Input"
+    if (meters == 0.0) return "0 m"
+    val formatted = formatNumbers(meters)
+    return when {
+        meters >= 1000.0 -> {
+            val km = meters / 1000.0
+            "${formatNumbers(km)} km ($formatted m)"
+        }
+        meters >= 1.0 -> "$formatted m"
+        meters >= 0.01 -> {
+            val cm = meters * 100.0
+            "${formatNumbers(cm)} cm ($formatted m)"
+        }
+        else -> {
+            val mm = meters * 1000.0
+            "${formatNumbers(mm)} mm ($formatted m)"
+        }
+    }
+}

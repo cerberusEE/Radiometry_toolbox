@@ -63,7 +63,7 @@ fun LocationPinIcon(modifier: Modifier = Modifier, color: Color = Color.White) {
         drawCircle(color = color, radius = r, center = Offset(cx, cy))
         // Inner hole
         drawCircle(color = Color(0xFF303030), radius = r * 0.45f, center = Offset(cx, cy))
-        // Pin point triangle
+        // Pinpoint triangle
         val path = Path().apply {
             moveTo(cx - r * 0.85f, cy + r * 0.3f)
             lineTo(cx, size.height * 0.92f)

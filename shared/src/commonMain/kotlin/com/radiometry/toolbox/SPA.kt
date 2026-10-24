@@ -201,12 +201,12 @@ object SpaCalculator {
         var deltaPsiSum = 0.0
         var deltaEpsSum = 0.0
 
-        for (term in NUTATION_TERMS) {
-            val thetaN = (term.y0 * x0 + term.y1 * x1 + term.y2 * x2 + term.y3 * x3 + term.y4 * x4).toRadians()
+        for ((y0, y1, y2, y3, y4, aPsi, bPsi, aEps, bEps) in NUTATION_TERMS) {
+            val thetaN = (y0 * x0 + y1 * x1 + y2 * x2 + y3 * x3 + y4 * x4).toRadians()
             val sinN = sin(thetaN)
             val cosN = cos(thetaN)
-            deltaPsiSum += term.aPsi * sinN + term.bPsi * cosN
-            deltaEpsSum += term.aEps * cosN + term.bEps * sinN
+            deltaPsiSum += aPsi * sinN + bPsi * cosN
+            deltaEpsSum += aEps * cosN + bEps * sinN
         }
 
         val deltaPsiDeg = deltaPsiSum / 36000000.0
